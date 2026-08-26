@@ -45,7 +45,7 @@ function create(display) {
     try {
       const windows = require('./desktop/windows');
       const hwnd = wallpaperWindow.getNativeWindowHandle();
-      windows.setParentToWorkerW(hwnd.readInt32LE(0));
+      windows.setParentToWorkerW(Number(hwnd.readBigUInt64LE(0)));
     } catch (err) {
       console.error('WorkerW injection failed:', err.message);
     }

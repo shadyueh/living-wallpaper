@@ -1,10 +1,10 @@
 const ffi = require('ffi-napi');
 
 const user32 = ffi.Library('user32.dll', {
-  'FindWindowW':       ['int', ['string', 'string']],
-  'SendMessageW':      ['int', ['int', 'int', 'int', 'int']],
-  'FindWindowExW':     ['int', ['int', 'int', 'string', 'string']],
-  'SetParent':         ['int', ['int', 'int']],
+  'FindWindowW':       ['pointer', ['string', 'string']],
+  'SendMessageW':      ['pointer', ['pointer', 'int', 'int', 'int']],
+  'FindWindowExW':     ['pointer', ['pointer', 'pointer', 'string', 'string']],
+  'SetParent':         ['pointer', ['pointer', 'pointer']],
 });
 
 let workerW = null;
