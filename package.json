@@ -17,10 +17,11 @@
     "ref-napi": "^3.0.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
     "eslint": "^9.39.5",
-    "eslint-plugin-node": "^11.1.0",
+    "globals": "^15.15.0",
     "jest": "^29.7.0"
   }
 }
