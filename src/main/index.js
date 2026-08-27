@@ -96,7 +96,6 @@ ipcMain.on(IPC.SHOW_UI, () => {
 });
 
 ipcMain.on(IPC.QUIT_APP, () => {
-  wallpaperManager.destroy();
   app.quit();
 });
 
@@ -159,5 +158,8 @@ app.whenReady().then(async () => {
 app.on('before-quit', () => {
   fullscreenDetector.stop();
   wallpaperManager.destroy();
+  if (uiWindow && !uiWindow.isDestroyed()) {
+    uiWindow.destroy();
+  }
   tray.destroy();
 });
