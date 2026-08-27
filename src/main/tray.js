@@ -2,7 +2,7 @@ const { Tray, Menu, nativeImage, app } = require('electron');
 const path = require('path');
 const config = require('./config');
 const wallpaperManager = require('./wallpaper-manager');
-const { IPC, WALLPAPER_STATUS } = require('../shared/constants');
+const { WALLPAPER_STATUS } = require('../shared/constants');
 
 let tray = null;
 

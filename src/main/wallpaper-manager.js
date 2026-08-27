@@ -1,5 +1,5 @@
 // src/main/wallpaper-manager.js
-const { BrowserWindow, screen } = require('electron');
+const { BrowserWindow } = require('electron');
 const path = require('path');
 const { IPC, WALLPAPER_STATUS } = require('../shared/constants');
 
