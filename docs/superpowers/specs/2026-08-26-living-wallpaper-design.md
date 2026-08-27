@@ -276,12 +276,12 @@ src/
 ## 8. Phases
 
 ### Phase 1 — MVP
-- [ ] Electron scaffolding with main + renderer processes
-- [ ] Windows WorkerW injection (set wallpaper behind icons)
-- [ ] Video wallpaper playback (MP4/WebM)
-- [ ] System tray integration
-- [ ] Basic settings UI
-- [ ] Auto-pause on fullscreen
+- [x] Electron scaffolding with main + renderer processes
+- [x] Windows WorkerW injection (set wallpaper behind icons)
+- [x] Video wallpaper playback (MP4/WebM)
+- [x] System tray integration
+- [x] Basic settings UI
+- [x] Auto-pause on fullscreen
 
 ### Phase 2 — Cross-platform + Editor
 - [ ] Linux X11 support (XRandr)
