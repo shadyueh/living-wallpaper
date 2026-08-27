@@ -62,12 +62,14 @@ function setWallpaper(wallpaper) {
 
 function pause() {
   if (!wallpaperWindow) return;
+  console.log('[Wallpaper] Paused (fullscreen detected)');
   wallpaperWindow.webContents.send(IPC.PAUSE_WALLPAPER);
   currentStatus = WALLPAPER_STATUS.PAUSED;
 }
 
 function resume() {
   if (!wallpaperWindow) return;
+  console.log('[Wallpaper] Resumed');
   wallpaperWindow.webContents.send(IPC.RESUME_WALLPAPER);
   currentStatus = WALLPAPER_STATUS.PLAYING;
 }

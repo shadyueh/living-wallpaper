@@ -129,9 +129,26 @@ app.whenReady().then(async () => {
   }
 
   if (config.get('pauseOnFullscreen')) {
+    let lastFullscreenState = false;
     fullscreenDetector.start((isFullscreen) => {
-      if (isFullscreen) wallpaperManager.pause();
-      else wallpaperManager.resume();
+      if (isFullscreen && !lastFullscreenState) {
+        wallpaperManager.pause();
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'Living Wallpaper',
+            body: 'Wallpaper paused — fullscreen app detected',
+          }).show();
+        }
+      } else if (!isFullscreen && lastFullscreenState) {
+        wallpaperManager.resume();
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'Living Wallpaper',
+            body: 'Wallpaper resumed',
+          }).show();
+        }
+      }
+      lastFullscreenState = isFullscreen;
     });
   }
 
