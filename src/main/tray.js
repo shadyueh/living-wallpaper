@@ -33,6 +33,10 @@ function updateMenu() {
 
   const isPaused = wallpaperManager.getStatus() === WALLPAPER_STATUS.PAUSED;
   const wallpaper = config.get('wallpaper');
+  const name = wallpaper ? path.basename(wallpaper, path.extname(wallpaper)) : 'No wallpaper';
+
+  const statusText = isPaused ? 'Paused (fullscreen)' : 'Playing';
+  tray.setToolTip(`${name} — ${statusText}`);
 
   const template = [
     {
@@ -65,7 +69,6 @@ function updateMenu() {
     {
       label: 'Quit',
       click: () => {
-        wallpaperManager.destroy();
         app.quit();
       },
     },
