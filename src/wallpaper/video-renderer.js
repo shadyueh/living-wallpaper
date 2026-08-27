@@ -1,10 +1,11 @@
 const { ipcRenderer } = require('electron');
+const { IPC } = require('../shared/constants');
 
 const video = document.getElementById('wallpaper');
 let currentPath = null;
 
 function sendStatus(status, error = null) {
-  ipcRenderer.send('lw:wallpaper-status', { status, error });
+  ipcRenderer.send(IPC.WALLPAPER_STATUS, { status, error });
 }
 
 video.addEventListener('play', () => sendStatus('playing'));
@@ -16,10 +17,12 @@ video.addEventListener('error', () => {
 
 video.addEventListener('ended', () => {
   video.currentTime = 0;
-  video.play().catch(() => {});
+  video.play().catch((err) => {
+    sendStatus('error', err.message);
+  });
 });
 
-ipcRenderer.on('lw:set-wallpaper', (_event, wallpaper) => {
+ipcRenderer.on(IPC.SET_WALLPAPER, (_event, wallpaper) => {
   if (wallpaper.type !== 'video') return;
 
   if (currentPath === wallpaper.path) return;
@@ -35,19 +38,21 @@ ipcRenderer.on('lw:set-wallpaper', (_event, wallpaper) => {
   });
 });
 
-ipcRenderer.on('lw:pause-wallpaper', () => {
+ipcRenderer.on(IPC.PAUSE_WALLPAPER, () => {
   video.pause();
 });
 
-ipcRenderer.on('lw:resume-wallpaper', () => {
-  video.play().catch(() => {});
+ipcRenderer.on(IPC.RESUME_WALLPAPER, () => {
+  video.play().catch((err) => {
+    sendStatus('error', err.message);
+  });
 });
 
-ipcRenderer.on('lw:set-volume', (_event, volume) => {
+ipcRenderer.on(IPC.SET_VOLUME, (_event, volume) => {
   video.volume = volume;
   video.muted = volume === 0;
 });
 
-ipcRenderer.on('lw:set-speed', (_event, speed) => {
+ipcRenderer.on(IPC.SET_SPEED, (_event, speed) => {
   video.playbackRate = speed;
 });

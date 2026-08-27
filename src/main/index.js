@@ -10,6 +10,12 @@ const { IPC, WALLPAPER_STATUS } = require('../shared/constants');
 
 let uiWindow = null;
 
+function notify(title, body) {
+  if (Notification.isSupported()) {
+    new Notification({ title, body }).show();
+  }
+}
+
 function createUIWindow() {
   uiWindow = new BrowserWindow({
     width: 520,
@@ -78,13 +84,7 @@ ipcMain.on(IPC.WALLPAPER_STATUS, (_event, { status, error }) => {
     if (uiWindow && !uiWindow.isDestroyed()) {
       uiWindow.webContents.send(IPC.WALLPAPER_ERROR, error);
     }
-    if (Notification.isSupported()) {
-      const notification = new Notification({
-        title: 'Living Wallpaper',
-        body: `Video file not found: ${error}`,
-      });
-      notification.show();
-    }
+    notify('Living Wallpaper', `Video file not found: ${error}`);
   }
 });
 
@@ -117,13 +117,7 @@ app.whenReady().then(async () => {
       });
     } else {
       config.set('wallpaper', null);
-      if (Notification.isSupported()) {
-        const notification = new Notification({
-          title: 'Living Wallpaper',
-          body: `Saved video not found: ${path.basename(savedWallpaper)}`,
-        });
-        notification.show();
-      }
+      notify('Living Wallpaper', `Saved video not found: ${path.basename(savedWallpaper)}`);
     }
   }
 
@@ -132,20 +126,10 @@ app.whenReady().then(async () => {
     fullscreenDetector.start((isFullscreen) => {
       if (isFullscreen && !lastFullscreenState) {
         wallpaperManager.pause();
-        if (Notification.isSupported()) {
-          new Notification({
-            title: 'Living Wallpaper',
-            body: 'Wallpaper paused — fullscreen app detected',
-          }).show();
-        }
+        notify('Living Wallpaper', 'Wallpaper paused — fullscreen app detected');
       } else if (!isFullscreen && lastFullscreenState) {
         wallpaperManager.resume();
-        if (Notification.isSupported()) {
-          new Notification({
-            title: 'Living Wallpaper',
-            body: 'Wallpaper resumed',
-          }).show();
-        }
+        notify('Living Wallpaper', 'Wallpaper resumed');
       }
       lastFullscreenState = isFullscreen;
     });

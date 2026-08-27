@@ -36,7 +36,7 @@ ipcRenderer.on(IPC.WALLPAPER_ERROR, (_e, error) => {
 });
 
 function setWallpaper(filePath) {
-  ipcRenderer.send('lw:set-wallpaper', {
+  ipcRenderer.send(IPC.SET_WALLPAPER, {
     type: 'video',
     path: filePath,
   });
@@ -72,7 +72,7 @@ document.getElementById('apply').addEventListener('click', () => {
     pauseOnFullscreen: document.getElementById('pauseOnFullscreen').checked,
     pauseOnBattery: document.getElementById('pauseOnBattery').checked,
   };
-  ipcRenderer.send('lw:set-config', cfg);
-  ipcRenderer.send('lw:set-volume', cfg.volume / 100);
-  ipcRenderer.send('lw:set-speed', cfg.speed);
+  ipcRenderer.send(IPC.SET_CONFIG, cfg);
+  ipcRenderer.send(IPC.SET_VOLUME, cfg.volume / 100);
+  ipcRenderer.send(IPC.SET_SPEED, cfg.speed);
 });

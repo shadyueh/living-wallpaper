@@ -40,7 +40,7 @@ function updateMenu() {
 
   const template = [
     {
-      label: wallpaper ? path.basename(wallpaper, path.extname(wallpaper)) : 'No wallpaper',
+      label: name,
       enabled: false,
     },
     { type: 'separator' },

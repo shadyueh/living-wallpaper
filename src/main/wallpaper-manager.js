@@ -56,7 +56,6 @@ function create(display) {
 
 function setWallpaper(wallpaper) {
   if (!wallpaperWindow) return;
-  currentStatus = WALLPAPER_STATUS.PLAYING;
   wallpaperWindow.webContents.send(IPC.SET_WALLPAPER, wallpaper);
 }
 

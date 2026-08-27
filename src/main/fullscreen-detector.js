@@ -2,6 +2,10 @@ const POLL_INTERVAL_MS = 2000;
 let intervalId = null;
 
 let user32 = null;
+let hasFullscreenWindow = false;
+const GWL_STYLE = -16;
+const WS_CAPTION = 0x00C00000;
+const WS_MAXIMIZE = 0x01000000;
 
 function initLibrary() {
   if (user32) return;
@@ -13,15 +17,10 @@ function initLibrary() {
   });
 }
 
-let found = false;
-const GWL_STYLE = -16;
-const WS_CAPTION = 0x00C00000;
-const WS_MAXIMIZE = 0x01000000;
-
 function isAnyWindowFullscreen() {
   try {
     initLibrary();
-    found = false;
+    hasFullscreenWindow = false;
 
     const EnumWindowsProc = (global._lwEnumWindowsProc =
       global._lwEnumWindowsProc ||
@@ -33,7 +32,7 @@ function isAnyWindowFullscreen() {
           const hasCaption = !!(style & WS_CAPTION);
           const isMaximized = !!(style & WS_MAXIMIZE);
           if (!hasCaption && isMaximized) {
-            found = true;
+            hasFullscreenWindow = true;
             return false;
           }
           return true;
@@ -41,7 +40,7 @@ function isAnyWindowFullscreen() {
       })());
 
     user32.EnumWindows(EnumWindowsProc, 0);
-    return found;
+    return hasFullscreenWindow;
   } catch {
     return false;
   }
