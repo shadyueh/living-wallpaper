@@ -16,19 +16,35 @@ jest.mock('ffi-napi', () => {
 const detector = require('../../src/main/fullscreen-detector');
 
 describe('fullscreen-detector', () => {
-  afterEach(() => detector.stop());
+  beforeEach(() => {
+    jest.useFakeTimers();
+    detector.stop();
+  });
 
-  test('calls callback with false when no fullscreen window', (done) => {
-    detector.start((isFull) => {
-      expect(isFull).toBe(false);
-      detector.stop();
-      done();
-    });
-  }, 5000);
+  afterEach(() => {
+    detector.stop();
+    jest.useRealTimers();
+  });
+
+  test('calls callback with false when no fullscreen window', () => {
+    const cb = jest.fn();
+    detector.start(cb);
+
+    jest.advanceTimersByTime(2000);
+
+    expect(cb).toHaveBeenCalledWith(false);
+    detector.stop();
+    jest.advanceTimersByTime(4000);
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
 
   test('stops polling when stop() is called', () => {
-    detector.start(() => {});
+    const cb = jest.fn();
+    detector.start(cb);
     detector.stop();
-    // No error = pass
+
+    jest.advanceTimersByTime(4000);
+
+    expect(cb).not.toHaveBeenCalled();
   });
 });

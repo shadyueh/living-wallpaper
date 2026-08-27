@@ -2,12 +2,14 @@ describe('fullscreen-detector (fullscreen window)', () => {
   let detector;
 
   beforeEach(() => {
+    jest.useFakeTimers();
     jest.resetModules();
     delete global._lwEnumWindowsProc;
   });
 
   afterEach(() => {
     if (detector) detector.stop();
+    jest.useRealTimers();
   });
 
   test('isAnyWindowFullscreen returns true when window has WS_MAXIMIZE', () => {
@@ -27,7 +29,7 @@ describe('fullscreen-detector (fullscreen window)', () => {
     expect(detector.isAnyWindowFullscreen()).toBe(true);
   });
 
-  test('calls callback with true when fullscreen window exists', (done) => {
+  test('calls callback with true when fullscreen window exists', () => {
     const WS_MAXIMIZE = 0x01000000;
     jest.doMock('ffi-napi', () => ({
       Library: jest.fn(() => ({
@@ -41,10 +43,11 @@ describe('fullscreen-detector (fullscreen window)', () => {
       Callback: jest.fn((_ret, _args, fn) => fn),
     }));
     detector = require('../../src/main/fullscreen-detector');
-    detector.start((isFull) => {
-      expect(isFull).toBe(true);
-      detector.stop();
-      done();
-    });
-  }, 5000);
+    const cb = jest.fn();
+    detector.start(cb);
+
+    jest.advanceTimersByTime(2000);
+
+    expect(cb).toHaveBeenCalledWith(true);
+  });
 });
