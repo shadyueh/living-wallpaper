@@ -156,10 +156,6 @@ app.whenReady().then(async () => {
   createUIWindow();
 });
 
-app.on('window-all-closed', (e) => {
-  e.preventDefault();
-});
-
 app.on('before-quit', () => {
   fullscreenDetector.stop();
   wallpaperManager.destroy();

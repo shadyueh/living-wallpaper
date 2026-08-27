@@ -69,7 +69,6 @@ function updateMenu() {
     {
       label: 'Quit',
       click: () => {
-        wallpaperManager.destroy();
         app.quit();
       },
     },
