@@ -1,7 +1,8 @@
 const { ipcRenderer } = require('electron');
+const { IPC } = require('../shared/constants');
 
-ipcRenderer.send('lw:get-config');
-ipcRenderer.once('lw:config-response', (_e, cfg) => {
+ipcRenderer.send(IPC.GET_CONFIG);
+ipcRenderer.once(IPC.CONFIG_RESPONSE, (_e, cfg) => {
   document.getElementById('volume').value = cfg.volume || 0;
   document.getElementById('speed').value = cfg.speed || 1;
   document.getElementById('pauseOnFullscreen').checked = cfg.pauseOnFullscreen !== false;
@@ -22,10 +23,15 @@ dropZone.addEventListener('dragleave', () => {
 dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
   dropZone.classList.remove('dragover');
+  hideError();
   const file = e.dataTransfer.files[0];
   if (file && /\.(mp4|webm|ogg)$/i.test(file.name)) {
     setWallpaper(file.path);
   }
+});
+
+ipcRenderer.on(IPC.WALLPAPER_ERROR, (_e, error) => {
+  showError(error);
 });
 
 function setWallpaper(filePath) {
@@ -40,6 +46,22 @@ function showWallpaper(filePath) {
   const name = filePath.split(/[\\/]/).pop();
   document.getElementById('currentWallpaper').style.display = 'block';
   document.getElementById('wallpaperName').textContent = name;
+}
+
+function showError(message) {
+  const errorEl = document.getElementById('wallpaperError');
+  if (errorEl) {
+    errorEl.textContent = message;
+    errorEl.style.display = 'block';
+  }
+  document.getElementById('currentWallpaper').style.display = 'none';
+}
+
+function hideError() {
+  const errorEl = document.getElementById('wallpaperError');
+  if (errorEl) {
+    errorEl.style.display = 'none';
+  }
 }
 
 document.getElementById('apply').addEventListener('click', () => {

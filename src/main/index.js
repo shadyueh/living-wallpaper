@@ -1,11 +1,12 @@
 // src/main/index.js
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Notification } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 const wallpaperManager = require('./wallpaper-manager');
 const fullscreenDetector = require('./fullscreen-detector');
 const tray = require('./tray');
-const { IPC } = require('../shared/constants');
+const { IPC, WALLPAPER_STATUS } = require('../shared/constants');
 
 let uiWindow = null;
 
@@ -35,7 +36,7 @@ function createUIWindow() {
 // --- IPC Handlers ---
 
 ipcMain.on(IPC.GET_CONFIG, (event) => {
-  event.reply('lw:config-response', config.getAll());
+  event.reply(IPC.CONFIG_RESPONSE, config.getAll());
 });
 
 ipcMain.on(IPC.SET_CONFIG, (_event, partial) => {
@@ -45,6 +46,12 @@ ipcMain.on(IPC.SET_CONFIG, (_event, partial) => {
 });
 
 ipcMain.on(IPC.SET_WALLPAPER, (_event, wallpaper) => {
+  if (!fs.existsSync(wallpaper.path)) {
+    if (uiWindow && !uiWindow.isDestroyed()) {
+      uiWindow.webContents.send(IPC.WALLPAPER_ERROR, `File not found: ${path.basename(wallpaper.path)}`);
+    }
+    return;
+  }
   config.set('wallpaper', wallpaper.path);
   wallpaperManager.setWallpaper(wallpaper);
   tray.updateMenu();
@@ -59,6 +66,25 @@ ipcMain.on(IPC.SET_VOLUME, (_event, volume) => {
 
 ipcMain.on(IPC.SET_SPEED, (_event, speed) => {
   wallpaperManager.send(IPC.SET_SPEED, speed);
+});
+
+ipcMain.on(IPC.WALLPAPER_STATUS, (_event, { status, error }) => {
+  wallpaperManager.updateStatus(status, error);
+  tray.updateMenu();
+
+  if (status === WALLPAPER_STATUS.ERROR) {
+    config.set('wallpaper', null);
+    if (uiWindow && !uiWindow.isDestroyed()) {
+      uiWindow.webContents.send(IPC.WALLPAPER_ERROR, error);
+    }
+    if (Notification.isSupported()) {
+      const notification = new Notification({
+        title: 'Living Wallpaper',
+        body: `Video file not found: ${error}`,
+      });
+      notification.show();
+    }
+  }
 });
 
 ipcMain.on(IPC.SHOW_UI, () => {
@@ -83,11 +109,22 @@ app.whenReady().then(async () => {
 
   const savedWallpaper = config.get('wallpaper');
   if (savedWallpaper) {
-    wallpaperManager.setWallpaper({
-      type: 'video',
-      path: savedWallpaper,
-      volume: config.get('volume'),
-    });
+    if (fs.existsSync(savedWallpaper)) {
+      wallpaperManager.setWallpaper({
+        type: 'video',
+        path: savedWallpaper,
+        volume: config.get('volume'),
+      });
+    } else {
+      config.set('wallpaper', null);
+      if (Notification.isSupported()) {
+        const notification = new Notification({
+          title: 'Living Wallpaper',
+          body: `Saved video not found: ${path.basename(savedWallpaper)}`,
+        });
+        notification.show();
+      }
+    }
   }
 
   if (config.get('pauseOnFullscreen')) {

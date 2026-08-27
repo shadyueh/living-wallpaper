@@ -30,6 +30,11 @@
     }
     .drop-zone.dragover { border-color: #0f3460; color: #0f3460; }
     .wallpaper-name { color: #4ecca3; font-weight: 500; }
+    .wallpaper-error {
+      color: #e74c3c; font-size: 13px; margin-bottom: 16px;
+      padding: 8px 12px; background: #2d1b1b; border-radius: 4px;
+      border: 1px solid #e74c3c; display: none;
+    }
   </style>
 </head>
 <body>
@@ -42,6 +47,8 @@
   <div id="currentWallpaper" style="display:none; margin-bottom: 16px;">
     Current: <span class="wallpaper-name" id="wallpaperName"></span>
   </div>
+
+  <div id="wallpaperError" class="wallpaper-error"></div>
 
   <div class="field">
     <label>Volume</label>

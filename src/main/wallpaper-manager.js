@@ -56,8 +56,8 @@ function create(display) {
 
 function setWallpaper(wallpaper) {
   if (!wallpaperWindow) return;
-  wallpaperWindow.webContents.send(IPC.SET_WALLPAPER, wallpaper);
   currentStatus = WALLPAPER_STATUS.PLAYING;
+  wallpaperWindow.webContents.send(IPC.SET_WALLPAPER, wallpaper);
 }
 
 function pause() {
@@ -76,6 +76,15 @@ function getStatus() {
   return currentStatus;
 }
 
+function updateStatus(status, error) {
+  if (status === WALLPAPER_STATUS.PLAYING || status === WALLPAPER_STATUS.PAUSED) {
+    currentStatus = status;
+  } else if (status === WALLPAPER_STATUS.ERROR) {
+    currentStatus = WALLPAPER_STATUS.ERROR;
+    console.error('Wallpaper error:', error);
+  }
+}
+
 function send(channel, ...args) {
   if (!wallpaperWindow) return;
   wallpaperWindow.webContents.send(channel, ...args);
@@ -89,4 +98,4 @@ function destroy() {
   currentStatus = WALLPAPER_STATUS.STOPPED;
 }
 
-module.exports = { create, setWallpaper, pause, resume, getStatus, send, destroy };
+module.exports = { create, setWallpaper, pause, resume, getStatus, updateStatus, send, destroy };
