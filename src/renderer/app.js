@@ -1,4 +1,4 @@
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, webUtils } = require('electron');
 const { IPC } = require('../shared/constants');
 
 ipcRenderer.send(IPC.GET_CONFIG);
@@ -26,7 +26,8 @@ dropZone.addEventListener('drop', (e) => {
   hideError();
   const file = e.dataTransfer.files[0];
   if (file && /\.(mp4|webm|ogg)$/i.test(file.name)) {
-    setWallpaper(file.path);
+    const filePath = webUtils.getPathForFile(file);
+    setWallpaper(filePath);
   }
 });
 

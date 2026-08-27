@@ -46,6 +46,7 @@ ipcMain.on(IPC.SET_CONFIG, (_event, partial) => {
 });
 
 ipcMain.on(IPC.SET_WALLPAPER, (_event, wallpaper) => {
+  if (!wallpaper || !wallpaper.path || typeof wallpaper.path !== 'string') return;
   if (!fs.existsSync(wallpaper.path)) {
     if (uiWindow && !uiWindow.isDestroyed()) {
       uiWindow.webContents.send(IPC.WALLPAPER_ERROR, `File not found: ${path.basename(wallpaper.path)}`);
