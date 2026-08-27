@@ -28,7 +28,7 @@ jest.mock('electron', () => {
 
 jest.mock('../../src/main/config', () => ({
   get: jest.fn((key) => {
-    const defaults = { wallpaper: '/path/to/video.mp4' };
+    const defaults = { wallpaper: '/path/to/video.mp4', hotkey: 'Ctrl+Shift+W' };
     return defaults[key];
   }),
   set: jest.fn(),
@@ -72,6 +72,15 @@ describe('tray', () => {
     tray.updateMenu();
     const t = tray.create();
     expect(t._tooltip).toContain('Paused');
+  });
+
+  test('updateMenu shows the hotkey in the toggle label', () => {
+    wallpaperManager.getStatus.mockReturnValue('playing');
+    tray.create();
+    tray.updateMenu();
+    const t = tray.create();
+    const toggle = t._menu.find((item) => item.label && item.label.includes('Pause'));
+    expect(toggle.label).toContain('Ctrl+Shift+W');
   });
 
   test('destroy is idempotent', () => {
