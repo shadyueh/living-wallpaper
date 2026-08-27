@@ -3,8 +3,40 @@ const { BrowserWindow } = require('electron');
 const path = require('path');
 const { IPC, WALLPAPER_STATUS } = require('../shared/constants');
 
+const PARENT_CHECK_INTERVAL_MS = 5000;
+
 let wallpaperWindow = null;
 let currentStatus = WALLPAPER_STATUS.STOPPED;
+let isReady = false;
+let pendingWallpaper = null;
+let parentWatchId = null;
+
+function stopParentingWatch() {
+  if (parentWatchId) {
+    clearInterval(parentWatchId);
+    parentWatchId = null;
+  }
+}
+
+function startParentingWatch() {
+  if (parentWatchId || process.platform !== 'win32') return;
+  parentWatchId = setInterval(() => {
+    if (!wallpaperWindow) return;
+    try {
+      const windows = require('./desktop/windows');
+      const hwnd = wallpaperWindow.getNativeWindowHandle();
+      windows.ensureParentedToWorkerW(Number(hwnd.readBigUInt64LE(0)));
+    } catch (err) {
+      console.error('Parenting watch failed:', err.message);
+    }
+  }, PARENT_CHECK_INTERVAL_MS);
+}
+
+function resetState() {
+  pendingWallpaper = null;
+  isReady = false;
+  stopParentingWatch();
+}
 
 function create(display) {
   if (wallpaperWindow) wallpaperWindow.destroy();
@@ -35,9 +67,18 @@ function create(display) {
   wallpaperWindow.setVisibleOnAllWorkspaces(true);
   wallpaperWindow.loadFile(path.join(__dirname, '..', 'wallpaper', 'index.html'));
 
+  wallpaperWindow.webContents.once('did-finish-load', () => {
+    isReady = true;
+    if (pendingWallpaper) {
+      wallpaperWindow.webContents.send(IPC.SET_WALLPAPER, pendingWallpaper);
+      pendingWallpaper = null;
+    }
+  });
+
   wallpaperWindow.on('closed', () => {
     wallpaperWindow = null;
     currentStatus = WALLPAPER_STATUS.STOPPED;
+    resetState();
   });
 
   // Parent to WorkerW on Windows
@@ -49,6 +90,7 @@ function create(display) {
     } catch (err) {
       console.error('WorkerW injection failed:', err.message);
     }
+    startParentingWatch();
   }
 
   return wallpaperWindow;
@@ -56,6 +98,10 @@ function create(display) {
 
 function setWallpaper(wallpaper) {
   if (!wallpaperWindow) return;
+  if (!isReady) {
+    pendingWallpaper = wallpaper;
+    return;
+  }
   wallpaperWindow.webContents.send(IPC.SET_WALLPAPER, wallpaper);
 }
 
@@ -97,6 +143,7 @@ function destroy() {
     wallpaperWindow = null;
   }
   currentStatus = WALLPAPER_STATUS.STOPPED;
+  resetState();
 }
 
 module.exports = { create, setWallpaper, pause, resume, getStatus, updateStatus, send, destroy };

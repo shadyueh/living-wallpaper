@@ -5,6 +5,8 @@ const user32 = ffi.Library('user32.dll', {
   'SendMessageW':      ['pointer', ['pointer', 'int', 'int', 'int']],
   'FindWindowExW':     ['pointer', ['pointer', 'pointer', 'string', 'string']],
   'SetParent':         ['pointer', ['pointer', 'pointer']],
+  'GetParent':         ['pointer', ['pointer']],
+  'IsWindow':          ['bool', ['pointer']],
 });
 
 let workerW = null;
@@ -36,8 +38,39 @@ function setParentToWorkerW(childHandle) {
   return user32.SetParent(childHandle, parent);
 }
 
+function toPointerValue(value) {
+  if (!value) return 0;
+  if (typeof value === 'number' || typeof value === 'bigint') return Number(value);
+  if (Buffer.isBuffer(value) && typeof value.readBigUInt64LE === 'function') {
+    try {
+      return Number(value.readBigUInt64LE(0));
+    } catch {
+      return value.readUInt32LE(0);
+    }
+  }
+  return Number(value);
+}
+
+function isParented(childHandle) {
+  try {
+    if (!workerW) return false;
+    if (!user32.IsWindow(workerW)) return false;
+    const parent = user32.GetParent(childHandle);
+    return parent && toPointerValue(parent) === toPointerValue(workerW);
+  } catch {
+    return false;
+  }
+}
+
+function ensureParentedToWorkerW(childHandle) {
+  if (isParented(childHandle)) return true;
+  resetWorkerW();
+  setParentToWorkerW(childHandle);
+  return true;
+}
+
 function resetWorkerW() {
   workerW = null;
 }
 
-module.exports = { getWorkerW, setParentToWorkerW, resetWorkerW };
+module.exports = { getWorkerW, setParentToWorkerW, isParented, ensureParentedToWorkerW, resetWorkerW };
