@@ -47,10 +47,19 @@ const { WALLPAPER_STATUS } = require('../../src/shared/constants');
 
 describe('wallpaper-manager', () => {
   let wm;
+  let spyLog;
+  let spyError;
 
   beforeEach(() => {
+    spyLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+    spyError = jest.spyOn(console, 'error').mockImplementation(() => {});
     jest.resetModules();
     wm = require('../../src/main/wallpaper-manager');
+  });
+
+  afterEach(() => {
+    spyLog.mockRestore();
+    spyError.mockRestore();
   });
 
   test('create returns a BrowserWindow', () => {
