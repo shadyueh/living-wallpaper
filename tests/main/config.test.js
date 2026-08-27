@@ -1,6 +1,5 @@
 // tests/main/config.test.js
 jest.mock('electron-store', () => {
-  const { DEFAULT_CONFIG } = require('../../src/shared/constants');
   return jest.fn().mockImplementation(({ defaults } = {}) => {
     const store = { ...defaults };
     return {
