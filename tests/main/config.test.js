@@ -1,24 +1,25 @@
 // tests/main/config.test.js
-jest.mock('electron-store', () => {
-  return jest.fn().mockImplementation(({ defaults } = {}) => {
-    const store = { ...defaults };
-    return {
-      get: (key) => store[key],
-      set: (key, value) => { store[key] = value; },
-      delete: (key) => { delete store[key]; },
-      store,
-    };
-  });
-});
-
 jest.mock('electron', () => ({
   app: { getPath: jest.fn(() => '/tmp/lw-test') },
 }));
 
 const config = require('../../src/main/config');
 
+function createMockStore({ defaults } = {}) {
+  const store = { ...defaults };
+  return {
+    get: (key) => store[key],
+    set: (key, value) => { store[key] = value; },
+    delete: (key) => { delete store[key]; },
+    store,
+  };
+}
+
 describe('config', () => {
-  beforeEach(() => config.reset());
+  beforeEach(async () => {
+    await config.init(createMockStore);
+    config.reset();
+  });
 
   test('returns default values', () => {
     expect(config.get('fps')).toBe(30);

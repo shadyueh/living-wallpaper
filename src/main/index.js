@@ -75,7 +75,9 @@ ipcMain.on(IPC.QUIT_APP, () => {
 
 // --- App Lifecycle ---
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await config.init();
+
   const primaryDisplay = screen.getPrimaryDisplay();
   wallpaperManager.create(primaryDisplay);
 

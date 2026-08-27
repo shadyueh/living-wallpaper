@@ -1,13 +1,18 @@
-const Store = require('electron-store');
-const { app } = require('electron');
 const { DEFAULT_CONFIG } = require('../shared/constants');
 
-const store = new Store({
-  cwd: app.getPath('userData'),
-  defaults: DEFAULT_CONFIG,
-});
+let store = null;
+
+async function init(StoreOverride) {
+  if (StoreOverride) {
+    store = new StoreOverride({ defaults: DEFAULT_CONFIG });
+  } else {
+    const mod = await import('electron-store');
+    store = new mod.default({ defaults: DEFAULT_CONFIG });
+  }
+}
 
 module.exports = {
+  init,
   get(key) { return store.get(key); },
   set(key, value) { store.set(key, value); },
   getAll() { return { ...store.store }; },
