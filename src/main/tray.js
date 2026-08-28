@@ -34,6 +34,7 @@ function updateMenu() {
   const isPaused = wallpaperManager.getStatus() === WALLPAPER_STATUS.PAUSED;
   const wallpaper = config.get('wallpaper');
   const name = wallpaper ? path.basename(wallpaper, path.extname(wallpaper)) : 'No wallpaper';
+  const hotkey = config.get('hotkey') || '';
 
   const statusText = isPaused ? 'Paused (fullscreen)' : 'Playing';
   tray.setToolTip(`${name} — ${statusText}`);
@@ -45,7 +46,7 @@ function updateMenu() {
     },
     { type: 'separator' },
     {
-      label: isPaused ? '▶ Resume' : '⏸ Pause',
+      label: `${isPaused ? '▶ Resume' : '⏸ Pause'}${hotkey ? ` (${hotkey})` : ''}`,
       click: () => {
         if (isPaused) wallpaperManager.resume();
         else wallpaperManager.pause();

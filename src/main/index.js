@@ -5,6 +5,7 @@ const path = require('path');
 const config = require('./config');
 const wallpaperManager = require('./wallpaper-manager');
 const fullscreenDetector = require('./fullscreen-detector');
+const hotkeys = require('./hotkeys');
 const tray = require('./tray');
 const { IPC, WALLPAPER_STATUS } = require('../shared/constants');
 
@@ -135,6 +136,8 @@ app.whenReady().then(async () => {
     });
   }
 
+  hotkeys.register();
+
   tray.create();
   createUIWindow();
 });
@@ -142,6 +145,7 @@ app.whenReady().then(async () => {
 app.on('before-quit', () => {
   fullscreenDetector.stop();
   wallpaperManager.destroy();
+  hotkeys.unregister();
   if (uiWindow && !uiWindow.isDestroyed()) {
     uiWindow.destroy();
   }
