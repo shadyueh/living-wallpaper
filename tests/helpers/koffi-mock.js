@@ -32,6 +32,7 @@ function createKoffiMock(options = {}) {
     GetWindowLongPtrW: jest.fn(() => 0),
     SetWindowLongPtrW: jest.fn(() => 0),
     SetWindowPos: jest.fn(() => 1),
+    DwmSetWindowAttribute: jest.fn(() => 0),
   };
 
   const nameOf = (signature) => Object.keys(handlers).find((name) => signature.includes(`${name}(`));

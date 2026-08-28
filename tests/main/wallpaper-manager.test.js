@@ -40,6 +40,10 @@ jest.mock('electron', () => {
   };
 });
 
+jest.mock('../../src/main/desktop/windows', () => ({
+  disableRoundedCorners: jest.fn(),
+}));
+
 const { IPC, WALLPAPER_STATUS } = require('../../src/shared/constants');
 
 const DISPLAY = { bounds: { x: 0, y: 0, width: 1920, height: 1080 } };
@@ -55,6 +59,7 @@ describe('wallpaper-manager', () => {
     spyError = jest.spyOn(console, 'error').mockImplementation(() => {});
     jest.resetModules();
     wm = require('../../src/main/wallpaper-manager');
+    require('../../src/main/desktop/windows').disableRoundedCorners.mockClear();
   });
 
   afterEach(() => {
@@ -189,6 +194,16 @@ describe('wallpaper-manager', () => {
   test('create throws when display has no bounds', () => {
     expect(() => wm.create(null)).toThrow(TypeError);
     expect(() => wm.create({})).toThrow(TypeError);
+  });
+
+  test('create disables rounded corners on win32', () => {
+    const windows = require('../../src/main/desktop/windows');
+    wm.create(DISPLAY);
+    if (process.platform === 'win32') {
+      expect(windows.disableRoundedCorners).toHaveBeenCalledWith(0);
+    } else {
+      expect(windows.disableRoundedCorners).not.toHaveBeenCalled();
+    }
   });
 
   test('destroy clears the pending wallpaper', () => {
