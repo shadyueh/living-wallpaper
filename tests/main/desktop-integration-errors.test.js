@@ -25,11 +25,11 @@ beforeEach(() => {
 });
 
 describe('windows desktop integration (error cases)', () => {
-  test('getWorkerW throws when Progman not found', () => {
-    expect(() => desktop.getWorkerW()).toThrow('Progman window not found');
+  test('getLayout throws when Progman not found', () => {
+    expect(() => desktop.getLayout()).toThrow('Progman window not found');
   });
 
-  test('resetWorkerW clears cached handle', () => {
-    desktop.resetWorkerW();
+  test('resetLayerCache clears cached handles', () => {
+    desktop.resetLayerCache();
   });
 });

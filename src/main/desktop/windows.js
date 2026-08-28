@@ -38,11 +38,6 @@ function findDesktopWorkerW() {
   return prev;
 }
 
-function getWorkerW() {
-  const current = getLayout();
-  return current.parent;
-}
-
 function getLayout() {
   if (layout) return layout;
 
@@ -78,7 +73,7 @@ function getLayout() {
   return layout;
 }
 
-function setParentToWorkerW(childHandle) {
+function attachToDesktopLayer(childHandle) {
   const { parent, insertAfter } = getLayout();
 
   // The wallpaper window is top-level; turn it into a child before re-parenting
@@ -92,7 +87,7 @@ function setParentToWorkerW(childHandle) {
   return result;
 }
 
-function isParented(childHandle) {
+function isAttachedToDesktop(childHandle) {
   try {
     if (!layout) return false;
     if (!IsWindow(layout.parent)) return false;
@@ -103,15 +98,15 @@ function isParented(childHandle) {
   }
 }
 
-function ensureParentedToWorkerW(childHandle) {
-  if (isParented(childHandle)) return true;
-  resetWorkerW();
-  setParentToWorkerW(childHandle);
+function ensureAttachedToDesktop(childHandle) {
+  if (isAttachedToDesktop(childHandle)) return true;
+  resetLayerCache();
+  attachToDesktopLayer(childHandle);
   return true;
 }
 
-function resetWorkerW() {
+function resetLayerCache() {
   layout = null;
 }
 
-module.exports = { getWorkerW, setParentToWorkerW, isParented, ensureParentedToWorkerW, resetWorkerW };
+module.exports = { getLayout, attachToDesktopLayer, isAttachedToDesktop, ensureAttachedToDesktop, resetLayerCache };

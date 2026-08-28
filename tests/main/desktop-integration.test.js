@@ -61,61 +61,61 @@ describe('windows desktop integration', () => {
     state.isWindowValue = 1;
     state.getParentValue = 100;
     state.setParentValue = 150;
-    desktop.resetWorkerW();
+    desktop.resetLayerCache();
   });
 
-  test('getWorkerW uses Progman when it hosts the icons directly', () => {
-    expect(desktop.getWorkerW()).toBe(100);
+  test('getLayout uses Progman when it hosts the icons directly', () => {
+    expect(desktop.getLayout()).toEqual({ parent: 100, insertAfter: 500 });
   });
 
-  test('getWorkerW uses Progman and the icons WorkerW in the classic layout', () => {
+  test('getLayout uses Progman and the icons WorkerW in the classic layout', () => {
     state.defViewUnderProgman = 0;
     state.defViewInWorkerW = 500;
     state.workers = [200];
-    expect(desktop.getWorkerW()).toBe(100);
+    expect(desktop.getLayout()).toEqual({ parent: 100, insertAfter: 200 });
   });
 
-  test('setParentToWorkerW parents to the desktop layer below the icons', () => {
-    desktop.getWorkerW();
-    const result = desktop.setParentToWorkerW(300);
+  test('attachToDesktopLayer attaches below the icons layer', () => {
+    desktop.getLayout();
+    const result = desktop.attachToDesktopLayer(300);
     expect(result).toBe(150);
     expect(handlers.SetWindowLongPtrW).toHaveBeenCalled();
     expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 500, 0, 0, 0, 0, 19);
   });
 
-  test('setParentToWorkerW uses the icons WorkerW as insertion target in the classic layout', () => {
+  test('attachToDesktopLayer uses the icons WorkerW as insertion target in the classic layout', () => {
     state.defViewUnderProgman = 0;
     state.defViewInWorkerW = 500;
     state.workers = [200];
-    desktop.getWorkerW();
-    desktop.setParentToWorkerW(300);
+    desktop.getLayout();
+    desktop.attachToDesktopLayer(300);
     expect(handlers.SetParent).toHaveBeenCalledWith(300, 100);
     expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 200, 0, 0, 0, 0, 19);
   });
 
-  test('isParented returns true when parent matches a live layer', () => {
-    desktop.getWorkerW();
-    expect(desktop.isParented(300)).toBe(true);
+  test('isAttachedToDesktop returns true when parent matches a live layer', () => {
+    desktop.getLayout();
+    expect(desktop.isAttachedToDesktop(300)).toBe(true);
   });
 
-  test('isParented returns false when the layer is gone', () => {
-    desktop.getWorkerW();
+  test('isAttachedToDesktop returns false when the layer is gone', () => {
+    desktop.getLayout();
     state.isWindowValue = 0;
-    expect(desktop.isParented(300)).toBe(false);
+    expect(desktop.isAttachedToDesktop(300)).toBe(false);
   });
 
-  test('ensureParentedToWorkerW re-injects when parenting is stale', () => {
-    desktop.getWorkerW();
+  test('ensureAttachedToDesktop re-injects when parenting is stale', () => {
+    desktop.getLayout();
     state.isWindowValue = 0;
 
-    desktop.ensureParentedToWorkerW(300);
+    desktop.ensureAttachedToDesktop(300);
 
     expect(handlers.SetParent).toHaveBeenCalled();
   });
 
-  test('ensureParentedToWorkerW is a no-op when already parented', () => {
-    desktop.getWorkerW();
-    desktop.ensureParentedToWorkerW(300);
+  test('ensureAttachedToDesktop is a no-op when already attached', () => {
+    desktop.getLayout();
+    desktop.ensureAttachedToDesktop(300);
     expect(handlers.SetParent).not.toHaveBeenCalled();
   });
 });
