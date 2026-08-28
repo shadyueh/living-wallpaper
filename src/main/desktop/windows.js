@@ -12,10 +12,18 @@ const IsWindow = user32.func('bool IsWindow(uint64_t hwnd)');
 const GetWindowLongPtrW = user32.func('intptr_t GetWindowLongPtrW(uint64_t hwnd, int index)');
 const SetWindowLongPtrW = user32.func('intptr_t SetWindowLongPtrW(uint64_t hwnd, int index, intptr_t value)');
 const SetWindowPos = user32.func('void* SetWindowPos(uint64_t hwnd, uint64_t insertAfter, int x, int y, int cx, int cy, uint32_t flags)');
+const SetLayeredWindowAttributes = user32.func('bool SetLayeredWindowAttributes(uint64_t hwnd, int color, int alpha, int flags)');
+const GetWindowRect = user32.func('bool GetWindowRect(uint64_t hwnd, int* rect)');
+const MapWindowPoints = user32.func('int MapWindowPoints(uint64_t from, uint64_t to, int* points, int count)');
 const DwmSetWindowAttribute = dwmapi.func('int DwmSetWindowAttribute(uint64_t hwnd, uint32_t attribute, const void* data, uint32_t size)');
 
 const GWL_STYLE = -16;
+const GWL_EXSTYLE = -20;
 const WS_CHILD = 0x40000000;
+const WS_POPUP = 0x80000000;
+const WS_EX_LAYERED = 0x00080000;
+const WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
+const LWA_ALPHA = 0x00000002;
 const GA_PARENT = 1;
 const SWP_NOSIZE = 0x0001;
 const SWP_NOMOVE = 0x0002;
@@ -121,6 +129,88 @@ function resetLayerCache() {
   layout = null;
 }
 
+function isRaisedDesktop(progman) {
+  return (Number(GetWindowLongPtrW(progman, GWL_EXSTYLE)) & WS_EX_NOREDIRECTIONBITMAP) !== 0;
+}
+
+// Returns the window the wallpaper must be parented to in order to render
+// behind the desktop icons.
+//
+// Windows 11 24H2+ ("raised desktop"): SHELLDLL_DefView is a layered child of
+// Progman that draws just the icons, and the wallpaper renders into a child
+// WorkerW of Progman z-ordered below the icons layer. This is the user's build
+// (26200), so the child WorkerW is the primary target.
+//
+// Classic (Windows 10 / older Windows 11): SHELLDLL_DefView lives inside a
+// top-level WorkerW and the wallpaper layer is the empty top-level WorkerW
+// that follows the icons one.
+function findWallpaperWorkerW() {
+  const progman = handleValue(FindWindowW(PROGMAN_CLASS, null));
+  if (!progman) return 0;
+
+  // Ask Progman to spawn the wallpaper WorkerW behind the icons if it is not
+  // there yet (it is already present on repeated calls).
+  SendMessageW(progman, WM_SPAWN_WORKERW, 0, 0);
+
+  if (isRaisedDesktop(progman)) {
+    return handleValue(FindWindowExW(progman, 0, WORKERW_CLASS, null));
+  }
+
+  for (const w of workerWindows()) {
+    if (!handleValue(FindWindowExW(w, 0, DESKTOP_VIEW_CLASS, null))) return w;
+  }
+  return 0;
+}
+
+// Makes the Electron window render as the desktop wallpaper, behind the icons
+// and above the static wallpaper, by re-parenting it into the desktop layer.
+// DWM only composites a surface behind the desktop icons when the window is
+// layered and opaque, so we enable WS_EX_LAYERED and set full opacity before
+// making it a child window and nesting it (SetParent) into the wallpaper layer.
+//
+// `display` supplies the target bounds and scale factor. The Electron bounds
+// are in device-independent pixels, but SetWindowPos works in physical pixels,
+// so we scale them (display.scaleFactor) and cover the requested monitor. For
+// the multi-monitor "extend to all displays" mode we later size the window to
+// the full rectangle of the layer (GetWindowRect) instead.
+function attachWallpaperWindow(childHandle, display) {
+  const parent = findWallpaperWorkerW();
+  if (!parent) return false;
+
+  const scale = (display && display.scaleFactor) || 1;
+  const bounds = (display && display.bounds) || { x: 0, y: 0, width: 0, height: 0 };
+  const width = Math.round((bounds.width || 0) * scale);
+  const height = Math.round((bounds.height || 0) * scale);
+
+  // Read the layer's covering rectangle (physical pixels of the whole virtual
+  // desktop) as the reference geometry — this is what "extend to all displays"
+  // will size the window to in the multi-monitor feature.
+  const layerRect = new Int32Array(4);
+  GetWindowRect(parent, layerRect);
+
+  const exStyle = Number(GetWindowLongPtrW(childHandle, GWL_EXSTYLE));
+  if (!(exStyle & WS_EX_LAYERED)) {
+    SetWindowLongPtrW(childHandle, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+  }
+  SetLayeredWindowAttributes(childHandle, 0, 255, LWA_ALPHA);
+
+  // Turn the top-level window into a child so SetParent nests it into the
+  // desktop layer. Coordinates become relative to the new parent afterwards.
+  const style = Number(GetWindowLongPtrW(childHandle, GWL_STYLE));
+  SetWindowLongPtrW(childHandle, GWL_STYLE, (style & ~WS_POPUP) | WS_CHILD);
+
+  SetParent(childHandle, parent);
+
+  // Translate the requested screen origin into the layer's coordinate space so
+  // the window lands on the correct monitor (matters once we size per display).
+  const origin = new Int32Array([Math.round(bounds.x || 0), Math.round(bounds.y || 0)]);
+  MapWindowPoints(0, parent, origin, 1);
+
+  SetWindowPos(childHandle, 0, origin[0], origin[1], width, height, SWP_NOACTIVATE);
+
+  return true;
+}
+
 function disableRoundedCorners(childHandle) {
   if (!childHandle) return;
   const preference = new Int32Array([DWMWCP_DONOTROUND]);
@@ -134,4 +224,6 @@ module.exports = {
   ensureAttachedToDesktop,
   resetLayerCache,
   disableRoundedCorners,
+  findWallpaperWorkerW,
+  attachWallpaperWindow,
 };

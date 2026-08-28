@@ -22,10 +22,10 @@ function create(display) {
 
   const { x, y, width, height } = display.bounds;
 
-  wallpaperWindow = new BrowserWindow({
+  const options = {
     x, y, width, height,
-    type: 'desktop',
     frame: false,
+    show: false,
     backgroundColor: '#000000',
     skipTaskbar: true,
     hasShadow: false,
@@ -41,7 +41,17 @@ function create(display) {
       contextIsolation: false,
       offscreen: false,
     },
-  });
+  };
+
+  // 'desktop' is a valid type on macOS/Linux (background window level), but on
+  // Windows it is not a valid type and is silently ignored, leaving the window
+  // rendered above the desktop icons. On Windows the wallpaper is instead
+  // attached to the desktop WorkerW layer via attachWallpaperWindow below.
+  if (process.platform !== 'win32') {
+    options.type = 'desktop';
+  }
+
+  wallpaperWindow = new BrowserWindow(options);
 
   wallpaperWindow.setVisibleOnAllWorkspaces(true);
   wallpaperWindow.loadFile(path.join(__dirname, '..', 'wallpaper', 'index.html'));
@@ -50,10 +60,13 @@ function create(display) {
     try {
       const hwnd = Number(wallpaperWindow.getNativeWindowHandle().readBigUInt64LE(0));
       windows.disableRoundedCorners(hwnd);
+      windows.attachWallpaperWindow(hwnd, display);
     } catch (error) {
-      console.warn('Failed to disable rounded corners:', error.message);
+      console.warn('Failed to attach wallpaper to the desktop layer:', error.message);
     }
   }
+
+  wallpaperWindow.show();
 
   wallpaperWindow.webContents.once('did-finish-load', () => {
     isReady = true;

@@ -23,6 +23,7 @@ jest.mock('electron', () => {
     }
     loadFile() {}
     setVisibleOnAllWorkspaces() {}
+    show() {}
     getNativeWindowHandle() {
       return Buffer.alloc(8);
     }
@@ -42,6 +43,7 @@ jest.mock('electron', () => {
 
 jest.mock('../../src/main/desktop/windows', () => ({
   disableRoundedCorners: jest.fn(),
+  attachWallpaperWindow: jest.fn(() => true),
 }));
 
 const { IPC, WALLPAPER_STATUS } = require('../../src/shared/constants');
@@ -60,6 +62,7 @@ describe('wallpaper-manager', () => {
     jest.resetModules();
     wm = require('../../src/main/wallpaper-manager');
     require('../../src/main/desktop/windows').disableRoundedCorners.mockClear();
+    require('../../src/main/desktop/windows').attachWallpaperWindow.mockClear();
   });
 
   afterEach(() => {
@@ -75,9 +78,16 @@ describe('wallpaper-manager', () => {
     expect(win._opts.width).toBe(1920);
   });
 
-  test('create uses a desktop-type window (behind the icons)', () => {
+  test('create does not use the invalid desktop type on win32 and attaches behind the icons', () => {
+    const windows = require('../../src/main/desktop/windows');
     const win = wm.create(DISPLAY);
-    expect(win._opts.type).toBe('desktop');
+    if (process.platform === 'win32') {
+      expect(win._opts.type).toBeUndefined();
+      expect(windows.attachWallpaperWindow).toHaveBeenCalled();
+    } else {
+      expect(win._opts.type).toBe('desktop');
+      expect(windows.attachWallpaperWindow).not.toHaveBeenCalled();
+    }
     expect(win._opts.transparent).toBeUndefined();
   });
 

@@ -42,11 +42,12 @@ Renderer Process — Wallpaper Window (decorationless BrowserWindow)
 | Decision | Choice | Rationale |
 |---|---|---|
 | IPC between windows | Electron IPC + shared state | Native, no extra deps |
-| Native API calls | `ffi-napi` | Direct Win32/Linux API access without native addons |
+| Native API calls | `koffi` | Direct Win32/Linux API access via prebuilt bindings (ffi-napi/ref-napi addons fail to dlopen inside Electron) |
 | Video playback | `<video>` tag with HW accel | Electron's Chromium supports VA-API/DXVA natively |
 | Web wallpapers | `<webview>` tag | Isolation, performance, GPU process separation |
 | Shader rendering | `<canvas>` WebGL | Direct GLSL support via Chromium |
 | Config storage | JSON file in `app.getPath('userData')` | Simple, portable |
+| Wallpaper geometry / scaling | `display.bounds` (DIP) × `display.scaleFactor` → physical px for `SetWindowPos`; layer rect via `GetWindowRect`, offsets via `MapWindowPoints` | Electron bounds are DIP; Win32 needs physical pixels. Base for multi-monitor |
 | Wallpaper format | Directory with `manifest.json` | Self-contained, easy to share |
 
 ---
@@ -55,34 +56,44 @@ Renderer Process — Wallpaper Window (decorationless BrowserWindow)
 
 ### 3.1 Windows — WorkerW Injection
 
-**Technique:** Place the wallpaper BrowserWindow behind desktop icons using the Progman/WorkerW trick.
+**Technique:** Place the wallpaper BrowserWindow behind desktop icons by re-parenting it into the Progman/WorkerW layer. Native calls go through **koffi** (prebuilt bindings, no compiler toolchain; ffi-napi/ref-napi addons fail to dlopen inside Electron).
 
 ```javascript
-// Pseudocode — ffi-napi calls to Win32
-const user32 = ffi.Library('user32.dll', {
-  'FindWindowW': ['int', ['string', 'string']],
-  'SendMessageW': ['int', ['int', 'int', 'int', 'int']],
-  'SetParent': ['int', ['int', 'int']],
-  'FindWindowExW': ['int', ['int', 'int', 'string', 'string']],
-});
+// Pseudocode — koffi calls to Win32 (see src/main/desktop/windows.js)
+const user32 = koffi.load('user32.dll');
+const FindWindowW = user32.func('void* FindWindowW(const char16_t* name, const char16_t* title)');
+const SendMessageW = user32.func('void* SendMessageW(uint64_t hwnd, int msg, int wParam, int lParam)');
+const FindWindowExW = user32.func('void* FindWindowExW(uint64_t parent, uint64_t childAfter, const char16_t* cls, const char16_t* title)');
+const SetParent = user32.func('void* SetParent(uint64_t child, uint64_t parent)');
+const SetWindowPos = user32.func('void* SetWindowPos(uint64_t hwnd, uint64_t insertAfter, int x, int y, int cx, int cy, uint32_t flags)');
+const SetWindowLongPtrW = user32.func('intptr_t SetWindowLongPtrW(uint64_t hwnd, int index, intptr_t value)');
+const SetLayeredWindowAttributes = user32.func('bool SetLayeredWindowAttributes(uint64_t hwnd, int color, int alpha, int flags)');
 
 // 1. Find Progman
-const progman = user32.FindWindowW('Progman', null);
-
-// 2. Send message to create WorkerW layer
-user32.SendMessageW(progman, 0x052C, 0, 0);
-
-// 3. Find the new WorkerW
-const workerW = user32.FindWindowExW(null, null, 'WorkerW', null);
-
-// 4. Parent our window to WorkerW
-user32.SetParent(wallpaperWin32Handle, workerW);
+const progman = hv(FindWindowW('Progman', null));
+// 2. Ask Progman to spawn the wallpaper WorkerW behind the icons
+SendMessageW(progman, 0x052C, 0, 0);
+// 3. Detect "raised desktop" (Win11 24H2+): Progman carries WS_EX_NOREDIRECTIONBITMAP
+//    and the wallpaper layer is the child WorkerW of Progman, z-ordered below the icons.
+const workerW = hv(FindWindowExW(progman, 0, 'WorkerW', null));
+// 4. Turn the Electron window into a layered & opaque child and re-parent it
+SetWindowLongPtrW(hwnd, GWL_STYLE, (style & ~WS_POPUP) | WS_CHILD);
+SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+SetParent(hwnd, workerW);
+SetWindowPos(hwnd, 0, x, y, w, h, SWP_NOACTIVATE);
 ```
+
+**Scaled / multi-monitor geometry.** `display.bounds` from Electron is in **device-independent pixels (DIP)**, but `SetWindowPos` works in **physical pixels**. On a display scaled to 125% (e.g. a 2560x1440 monitor with `scaleFactor` 1.25), a window created from the raw DIP bounds ends up physically smaller than the screen. To cover the requested monitor the bounds are multiplied by `display.scaleFactor`, and the origin is translated into the layer's coordinate space with `MapWindowPoints(HWND_DESKTOP, layer, pt, 1)`.
+
+**Known topology (raised desktop, Win11 24H2+/build 26200 on multi-monitor):** there is a **single child WorkerW of Progman that covers the whole virtual desktop** (all monitors), not one WorkerW per display. Detecting the raised desktop uses `WS_EX_NOREDIRECTIONBITMAP` on Progman; the classic (Win10 / older Win11) fallback finds the empty top-level WorkerW that follows the icons WorkerW. `GetWindowRect(layer)` yields the layer's full covering rectangle (physical px of the whole virtual desktop), which is the base geometry for the future "extend to all displays" mode.
 
 **Known issues:**
 - DWM (Desktop Window Manager) may interfere on some Windows builds
 - Must re-parent on explorer.exe restart (shell restart detection via `WM_TASKBARCREATED`)
-- Multi-monitor: create one BrowserWindow per display, parent each to WorkerW
+- An Electron window re-parented via `SetParent`+`WS_CHILD` composites only when it is **layered and fully opaque** (`WS_EX_LAYERED` + `SetLayeredWindowAttributes(alpha=255)`) — otherwise it renders internally but never appears
+- `desktopCapturer` skips `type: 'desktop'`/parented windows, so a desktop screenshot never shows the wallpaper even when it is visibly composing
+- Multi-monitor (future): one BrowserWindow per display parented to the shared WorkerW, each sized to its own physical bounds and offset via `MapWindowPoints`; or a single window sized to `GetWindowRect(layer)` for "extend to all displays"
 
 ### 3.2 Linux — X11
 
@@ -186,7 +197,7 @@ my-wallpaper/
 - **Auto-pause**: Detect fullscreen app/game → pause wallpaper → ~0% CPU/GPU
   - Windows: `EnumWindows` + check `_NET_WM_STATE_FULLSCREEN`
   - Linux X11: `_NET_WM_STATE` atom check
-- **Multi-monitor**: Independent wallpaper per display
+- **Multi-monitor**: user-chosen layout — either **extend one wallpaper across all displays** or **assign an independent wallpaper per monitor**. Backed by per-display config keyed by display id, sized to physical pixels (see §3.1). On Windows the raised-desktop layout shares a single WorkerW across the virtual desktop, so per-monitor consists of one window per display offset via `MapWindowPoints`, and "extend" sizes a single window to `GetWindowRect(layer)`. (Roadmap — Phase 2; see plan `multi-monitor`.)
 - **Loop playback**: Seamless video looping with no gap
 - **Volume control**: Per-wallpaper audio (default: muted)
 - **Hotkey**: Quick toggle pause/play

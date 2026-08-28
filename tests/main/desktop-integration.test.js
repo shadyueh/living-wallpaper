@@ -16,6 +16,8 @@ describe('windows desktop integration', () => {
     state = lib.state;
     state.defViewUnderProgman = 500;
     state.defViewInWorkerW = 0;
+    state.progmanExStyle = 0;
+    state.progmanWorkerW = 0;
     state.workers = [];
     state.isWindowValue = 1;
     state.getParentValue = 100;
@@ -31,6 +33,7 @@ describe('windows desktop integration', () => {
     state.defViewUnderProgman = 0;
     state.defViewInWorkerW = 500;
     state.workers = [200];
+    state.workersWithDefView = [200];
     expect(desktop.getLayout()).toEqual({ parent: 100, insertAfter: 200 });
   });
 
@@ -49,6 +52,7 @@ describe('windows desktop integration', () => {
     state.defViewUnderProgman = 0;
     state.defViewInWorkerW = 500;
     state.workers = [200];
+    state.workersWithDefView = [200];
     desktop.getLayout();
     desktop.attachToDesktopLayer(300);
     expect(handlers.SetParent).toHaveBeenCalledWith(300, 100);
@@ -94,5 +98,58 @@ describe('windows desktop integration', () => {
   test('disableRoundedCorners is a no-op without a handle', () => {
     desktop.disableRoundedCorners(0);
     expect(handlers.DwmSetWindowAttribute).not.toHaveBeenCalled();
+  });
+
+  test('findWallpaperWorkerW uses the child WorkerW of Progman on the raised desktop (Win11 24H2+)', () => {
+    state.progmanExStyle = 0x00200000;
+    state.progmanWorkerW = 210;
+    state.defViewUnderProgman = 500;
+    expect(desktop.findWallpaperWorkerW()).toBe(210);
+  });
+
+  test('findWallpaperWorkerW uses the empty top-level WorkerW on the classic layout', () => {
+    state.defViewUnderProgman = 0;
+    state.defViewInWorkerW = 500;
+    state.workers = [200, 210];
+    state.workersWithDefView = [200];
+    expect(desktop.findWallpaperWorkerW()).toBe(210);
+  });
+
+  test('findWallpaperWorkerW returns 0 when no wallpaper layer is found', () => {
+    state.defViewUnderProgman = 0;
+    state.defViewInWorkerW = 0;
+    state.workers = [];
+    state.workersWithDefView = [];
+    expect(desktop.findWallpaperWorkerW()).toBe(0);
+  });
+
+  test('attachWallpaperWindow parents a layered, opaque child window to the wallpaper layer', () => {
+    state.progmanExStyle = 0x00200000;
+    state.progmanWorkerW = 210;
+    state.defViewUnderProgman = 500;
+    const display = { bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1 };
+    expect(desktop.attachWallpaperWindow(300, display)).toBe(true);
+    expect(handlers.SetParent).toHaveBeenCalledWith(300, 210);
+    expect(handlers.SetLayeredWindowAttributes).toHaveBeenCalledWith(300, 0, 255, 2);
+    expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 0, 0, 0, 1920, 1080, 16);
+  });
+
+  test('attachWallpaperWindow scales the bounds to physical pixels using the display scale factor', () => {
+    state.progmanExStyle = 0x00200000;
+    state.progmanWorkerW = 210;
+    state.defViewUnderProgman = 500;
+    const display = { bounds: { x: 0, y: 0, width: 2048, height: 1152 }, scaleFactor: 1.25 };
+    expect(desktop.attachWallpaperWindow(300, display)).toBe(true);
+    expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 0, 0, 0, 2560, 1440, 16);
+  });
+
+  test('attachWallpaperWindow returns false and does not parent when no layer found', () => {
+    state.defViewUnderProgman = 0;
+    state.defViewInWorkerW = 0;
+    state.workers = [];
+    state.workersWithDefView = [];
+    const display = { bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1 };
+    expect(desktop.attachWallpaperWindow(300, display)).toBe(false);
+    expect(handlers.SetParent).not.toHaveBeenCalled();
   });
 });
