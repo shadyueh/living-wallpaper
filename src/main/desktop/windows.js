@@ -1,76 +1,123 @@
-const ffi = require('ffi-napi');
+const koffi = require('koffi');
 
-const user32 = ffi.Library('user32.dll', {
-  'FindWindowW':       ['pointer', ['string', 'string']],
-  'SendMessageW':      ['pointer', ['pointer', 'int', 'int', 'int']],
-  'FindWindowExW':     ['pointer', ['pointer', 'pointer', 'string', 'string']],
-  'SetParent':         ['pointer', ['pointer', 'pointer']],
-  'GetParent':         ['pointer', ['pointer']],
-  'IsWindow':          ['bool', ['pointer']],
-});
+const user32 = koffi.load('user32.dll');
 
-let workerW = null;
+const FindWindowW = user32.func('void* FindWindowW(const char16_t* name, const char16_t* title)');
+const SendMessageW = user32.func('void* SendMessageW(uint64_t hwnd, int msg, int wParam, int lParam)');
+const FindWindowExW = user32.func('void* FindWindowExW(uint64_t parent, uint64_t childAfter, const char16_t* cls, const char16_t* title)');
+const SetParent = user32.func('void* SetParent(uint64_t child, uint64_t parent)');
+const GetAncestor = user32.func('void* GetAncestor(uint64_t hwnd, int flags)');
+const IsWindow = user32.func('bool IsWindow(uint64_t hwnd)');
+const GetWindowLongPtrW = user32.func('intptr_t GetWindowLongPtrW(uint64_t hwnd, int index)');
+const SetWindowLongPtrW = user32.func('intptr_t SetWindowLongPtrW(uint64_t hwnd, int index, intptr_t value)');
+const SetWindowPos = user32.func('void* SetWindowPos(uint64_t hwnd, uint64_t insertAfter, int x, int y, int cx, int cy, uint32_t flags)');
 
-function getWorkerW() {
-  if (workerW) return workerW;
+const GWL_STYLE = -16;
+const WS_CHILD = 0x40000000;
+const GA_PARENT = 1;
+const SWP_NOSIZE = 0x0001;
+const SWP_NOMOVE = 0x0002;
+const SWP_NOACTIVATE = 0x0010;
+const WM_SPAWN_WORKERW = 0x052C;
+const PROGMAN_CLASS = 'Progman';
+const DESKTOP_VIEW_CLASS = 'SHELLDLL_DefView';
+const WORKERW_CLASS = 'WorkerW';
 
-  const progman = user32.FindWindowW('Progman', null);
-  if (!progman) throw new Error('Progman window not found');
+let layout = null;
 
-  // Send 0x052C to create a WorkerW behind the desktop
-  user32.SendMessageW(progman, 0x052C, 0, 0);
-
-  // Find the new WorkerW (third WorkerW in the chain)
-  let w = null;
-  let prev = null;
-  while (true) {
-    w = user32.FindWindowExW(null, prev, 'WorkerW', null);
-    if (!w) break;
-    prev = w;
-  }
-  workerW = prev;
-  if (!workerW) throw new Error('WorkerW window not found');
-  return workerW;
-}
-
-function setParentToWorkerW(childHandle) {
-  const parent = getWorkerW();
-  return user32.SetParent(childHandle, parent);
-}
-
-function toPointerValue(value) {
+function handleValue(value) {
   if (!value) return 0;
   if (typeof value === 'number' || typeof value === 'bigint') return Number(value);
-  if (Buffer.isBuffer(value) && typeof value.readBigUInt64LE === 'function') {
-    try {
-      return Number(value.readBigUInt64LE(0));
-    } catch {
-      return value.readUInt32LE(0);
-    }
-  }
-  return Number(value);
+  return koffi.address(value);
 }
 
-function isParented(childHandle) {
+function* workerWindows() {
+  let prev = 0;
+  while (true) {
+    const w = handleValue(FindWindowExW(0, prev, WORKERW_CLASS, null));
+    if (!w) break;
+    yield w;
+    prev = w;
+  }
+}
+
+function findWorkerWWithDefView() {
+  for (const w of workerWindows()) {
+    if (handleValue(FindWindowExW(w, 0, DESKTOP_VIEW_CLASS, null))) return w;
+  }
+  return 0;
+}
+
+function findLastWorkerW() {
+  let last = 0;
+  for (const w of workerWindows()) last = w;
+  return last;
+}
+
+function getLayout() {
+  if (layout) return layout;
+
+  const progman = handleValue(FindWindowW(PROGMAN_CLASS, null));
+  if (!progman) throw new Error('Progman window not found');
+
+  // Send WM_SPAWN_WORKERW to wake up the desktop layer behind the icons
+  SendMessageW(progman, WM_SPAWN_WORKERW, 0, 0);
+
+  // Layout 1: icons hosted directly under Progman -> parent to Progman
+  const defView = handleValue(FindWindowExW(progman, 0, DESKTOP_VIEW_CLASS, null));
+  if (defView) {
+    layout = { parent: progman, insertAfter: defView };
+    return layout;
+  }
+
+  // Layout 2: icons hosted inside a WorkerW that sits under Progman
+  const iconsWorkerW = findWorkerWWithDefView();
+  if (iconsWorkerW) {
+    layout = { parent: progman, insertAfter: iconsWorkerW };
+    return layout;
+  }
+
+  // Fallback: use the last WorkerW in the chain
+  const lastW = findLastWorkerW();
+  if (!lastW) throw new Error('WorkerW window not found');
+  layout = { parent: lastW, insertAfter: lastW };
+  return layout;
+}
+
+function attachToDesktopLayer(childHandle) {
+  const { parent, insertAfter } = getLayout();
+
+  // The wallpaper window is top-level; turn it into a child before re-parenting
+  const style = handleValue(GetWindowLongPtrW(childHandle, GWL_STYLE));
+  SetWindowLongPtrW(childHandle, GWL_STYLE, style | WS_CHILD);
+
+  const result = handleValue(SetParent(childHandle, parent));
+
+  // Position the wallpaper just below the icons layer (above the static wallpaper surface)
+  SetWindowPos(childHandle, insertAfter, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  return result;
+}
+
+function isAttachedToDesktop(childHandle) {
   try {
-    if (!workerW) return false;
-    if (!user32.IsWindow(workerW)) return false;
-    const parent = user32.GetParent(childHandle);
-    return parent && toPointerValue(parent) === toPointerValue(workerW);
+    if (!layout) return false;
+    if (!IsWindow(layout.parent)) return false;
+    const parent = handleValue(GetAncestor(childHandle, GA_PARENT));
+    return parent === layout.parent;
   } catch {
     return false;
   }
 }
 
-function ensureParentedToWorkerW(childHandle) {
-  if (isParented(childHandle)) return true;
-  resetWorkerW();
-  setParentToWorkerW(childHandle);
+function ensureAttachedToDesktop(childHandle) {
+  if (isAttachedToDesktop(childHandle)) return true;
+  resetLayerCache();
+  attachToDesktopLayer(childHandle);
   return true;
 }
 
-function resetWorkerW() {
-  workerW = null;
+function resetLayerCache() {
+  layout = null;
 }
 
-module.exports = { getWorkerW, setParentToWorkerW, isParented, ensureParentedToWorkerW, resetWorkerW };
+module.exports = { getLayout, attachToDesktopLayer, isAttachedToDesktop, ensureAttachedToDesktop, resetLayerCache };

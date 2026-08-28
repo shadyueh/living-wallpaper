@@ -1,15 +1,28 @@
-jest.mock('ffi-napi', () => {
+jest.mock('koffi', () => {
+  const handlers = {
+    EnumWindows: jest.fn((cb) => {
+      cb(1, 0); // simulate one window
+      return 1;
+    }),
+    IsWindowVisible: jest.fn(() => true),
+    GetWindowLongW: jest.fn(() => 0),
+  };
+  const lib = {
+    func: jest.fn((...args) => {
+      let name;
+      if (typeof args[0] === 'string' && args.length === 1) {
+        name = args[0].match(/[A-Za-z_]\w*(?=\s*\()/)[0];
+      } else {
+        name = args[1];
+      }
+      return handlers[name];
+    }),
+  };
   return {
-    Library: jest.fn(() => ({
-      EnumWindows: jest.fn((cb) => {
-        cb(1, 0); // simulate one window
-        return 1;
-      }),
-      IsWindowVisible: jest.fn(() => true),
-      GetWindowTextW: jest.fn(() => Buffer.alloc(256)),
-      GetWindowLongW: jest.fn(() => 0),
-    })),
-    Callback: jest.fn(() => ({})),
+    load: jest.fn(() => lib),
+    proto: jest.fn(() => 'EnumWindowsProcType'),
+    pointer: jest.fn(() => 'EnumWindowsProcPtr'),
+    register: jest.fn((fn) => fn),
   };
 });
 

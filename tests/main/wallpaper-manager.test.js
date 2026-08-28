@@ -40,11 +40,6 @@ jest.mock('electron', () => {
   };
 });
 
-jest.mock('../../src/main/desktop/windows', () => ({
-  setParentToWorkerW: jest.fn(),
-  ensureParentedToWorkerW: jest.fn(),
-}));
-
 const { IPC, WALLPAPER_STATUS } = require('../../src/shared/constants');
 
 const DISPLAY = { bounds: { x: 0, y: 0, width: 1920, height: 1080 } };
@@ -75,6 +70,12 @@ describe('wallpaper-manager', () => {
     expect(win._opts.width).toBe(1920);
   });
 
+  test('create uses a desktop-type window (behind the icons)', () => {
+    const win = wm.create(DISPLAY);
+    expect(win._opts.type).toBe('desktop');
+    expect(win._opts.transparent).toBeUndefined();
+  });
+
   test('create destroys previous window', () => {
     const first = wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
     const second = wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
@@ -91,6 +92,26 @@ describe('wallpaper-manager', () => {
     wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
     wm.pause();
     expect(wm.getStatus()).toBe(WALLPAPER_STATUS.PAUSED);
+  });
+
+  test('toggle pauses when playing', () => {
+    wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
+    wm.resume();
+    wm.toggle();
+    expect(wm.getStatus()).toBe(WALLPAPER_STATUS.PAUSED);
+  });
+
+  test('toggle resumes when paused', () => {
+    wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
+    wm.pause();
+    wm.toggle();
+    expect(wm.getStatus()).toBe(WALLPAPER_STATUS.PLAYING);
+  });
+
+  test('toggle is a no-op while stopped', () => {
+    wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
+    wm.toggle();
+    expect(wm.getStatus()).toBe(WALLPAPER_STATUS.STOPPED);
   });
 
   test('resume sets status to PLAYING', () => {
@@ -165,6 +186,11 @@ describe('wallpaper-manager', () => {
     expect(sendSpy).toHaveBeenCalledTimes(1);
   });
 
+  test('create throws when display has no bounds', () => {
+    expect(() => wm.create(null)).toThrow(TypeError);
+    expect(() => wm.create({})).toThrow(TypeError);
+  });
+
   test('destroy clears the pending wallpaper', () => {
     wm.create(DISPLAY);
     wm.setWallpaper({ type: 'video', path: 'C:/z.mp4' });
@@ -175,27 +201,5 @@ describe('wallpaper-manager', () => {
     win2.webContents.emit('did-finish-load');
 
     expect(sendSpy).not.toHaveBeenCalled();
-  });
-
-  test('starts parenting watch on win32 and re-asserts parenting', () => {
-    wm.create(DISPLAY);
-    if (process.platform !== 'win32') return;
-    const { ensureParentedToWorkerW } = require('../../src/main/desktop/windows');
-
-    jest.advanceTimersByTime(5000);
-
-    expect(ensureParentedToWorkerW).toHaveBeenCalled();
-  });
-
-  test('parenting watch stops on destroy', () => {
-    wm.create(DISPLAY);
-    if (process.platform !== 'win32') return;
-    const { ensureParentedToWorkerW } = require('../../src/main/desktop/windows');
-    ensureParentedToWorkerW.mockClear();
-
-    wm.destroy();
-    jest.advanceTimersByTime(15000);
-
-    expect(ensureParentedToWorkerW).not.toHaveBeenCalled();
   });
 });

@@ -13,8 +13,7 @@
   },
   "dependencies": {
     "electron-store": "^11.0.2",
-    "ffi-napi": "^4.0.3",
-    "ref-napi": "^3.0.3"
+    "koffi": "^3.1.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

@@ -36,8 +36,7 @@ jest.mock('../../src/main/config', () => ({
 
 jest.mock('../../src/main/wallpaper-manager', () => ({
   getStatus: jest.fn(() => 'stopped'),
-  pause: jest.fn(),
-  resume: jest.fn(),
+  toggle: jest.fn(),
 }));
 
 const tray = require('../../src/main/tray');
@@ -81,6 +80,25 @@ describe('tray', () => {
     const t = tray.create();
     const toggle = t._menu.find((item) => item.label && item.label.includes('Pause'));
     expect(toggle.label).toContain('Ctrl+Shift+W');
+  });
+
+  test('Settings menu item calls the injected showSettings callback', () => {
+    const showSettings = jest.fn();
+    const t = tray.create({ showSettings });
+    tray.updateMenu();
+    const settings = t._menu.find((item) => item.label === 'Settings...');
+    settings.click();
+    expect(showSettings).toHaveBeenCalled();
+  });
+
+  test('toggle menu item toggles the wallpaper', () => {
+    wallpaperManager.getStatus.mockReturnValue('playing');
+    tray.create();
+    tray.updateMenu();
+    const t = tray.create();
+    const toggle = t._menu.find((item) => item.label && item.label.includes('Pause'));
+    toggle.click();
+    expect(wallpaperManager.toggle).toHaveBeenCalled();
   });
 
   test('destroy is idempotent', () => {

@@ -3,50 +3,29 @@ const { BrowserWindow } = require('electron');
 const path = require('path');
 const { IPC, WALLPAPER_STATUS } = require('../shared/constants');
 
-const PARENT_CHECK_INTERVAL_MS = 5000;
-
 let wallpaperWindow = null;
 let currentStatus = WALLPAPER_STATUS.STOPPED;
 let isReady = false;
 let pendingWallpaper = null;
-let parentWatchId = null;
-
-function stopParentingWatch() {
-  if (parentWatchId) {
-    clearInterval(parentWatchId);
-    parentWatchId = null;
-  }
-}
-
-function startParentingWatch() {
-  if (parentWatchId || process.platform !== 'win32') return;
-  parentWatchId = setInterval(() => {
-    if (!wallpaperWindow) return;
-    try {
-      const windows = require('./desktop/windows');
-      const hwnd = wallpaperWindow.getNativeWindowHandle();
-      windows.ensureParentedToWorkerW(Number(hwnd.readBigUInt64LE(0)));
-    } catch (err) {
-      console.error('Parenting watch failed:', err.message);
-    }
-  }, PARENT_CHECK_INTERVAL_MS);
-}
 
 function resetState() {
   pendingWallpaper = null;
   isReady = false;
-  stopParentingWatch();
 }
 
 function create(display) {
+  if (!display || !display.bounds) {
+    throw new TypeError('A display with bounds is required to create the wallpaper window');
+  }
   if (wallpaperWindow) wallpaperWindow.destroy();
 
   const { x, y, width, height } = display.bounds;
 
   wallpaperWindow = new BrowserWindow({
     x, y, width, height,
+    type: 'desktop',
     frame: false,
-    transparent: true,
+    backgroundColor: '#000000',
     skipTaskbar: true,
     hasShadow: false,
     focusable: false,
@@ -56,7 +35,6 @@ function create(display) {
     maximizable: false,
     closable: false,
     alwaysOnTop: false,
-    type: 'toolbar',
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -80,18 +58,6 @@ function create(display) {
     currentStatus = WALLPAPER_STATUS.STOPPED;
     resetState();
   });
-
-  // Parent to WorkerW on Windows
-  if (process.platform === 'win32') {
-    try {
-      const windows = require('./desktop/windows');
-      const hwnd = wallpaperWindow.getNativeWindowHandle();
-      windows.setParentToWorkerW(Number(hwnd.readBigUInt64LE(0)));
-    } catch (err) {
-      console.error('WorkerW injection failed:', err.message);
-    }
-    startParentingWatch();
-  }
 
   return wallpaperWindow;
 }
@@ -123,6 +89,15 @@ function getStatus() {
   return currentStatus;
 }
 
+function toggle() {
+  if (!wallpaperWindow) return;
+  if (currentStatus === WALLPAPER_STATUS.PAUSED) {
+    resume();
+  } else if (currentStatus === WALLPAPER_STATUS.PLAYING) {
+    pause();
+  }
+}
+
 function updateStatus(status, error) {
   if (status === WALLPAPER_STATUS.PLAYING || status === WALLPAPER_STATUS.PAUSED) {
     currentStatus = status;
@@ -146,4 +121,4 @@ function destroy() {
   resetState();
 }
 
-module.exports = { create, setWallpaper, pause, resume, getStatus, updateStatus, send, destroy };
+module.exports = { create, setWallpaper, pause, resume, toggle, getStatus, updateStatus, send, destroy };
