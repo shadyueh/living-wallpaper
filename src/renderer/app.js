@@ -1,16 +1,28 @@
 const { ipcRenderer, webUtils } = require('electron');
 const { IPC } = require('../shared/constants');
 
+const volumeInput = document.getElementById('volume');
+const speedInput = document.getElementById('speed');
+
+function updateIndicators() {
+  document.getElementById('volumeValue').textContent = `${volumeInput.value}%`;
+  document.getElementById('speedValue').textContent = `${Number(speedInput.value).toFixed(1)}x`;
+}
+
 ipcRenderer.send(IPC.GET_CONFIG);
 ipcRenderer.once(IPC.CONFIG_RESPONSE, (_e, cfg) => {
-  document.getElementById('volume').value = cfg.volume || 0;
-  document.getElementById('speed').value = cfg.speed || 1;
+  volumeInput.value = cfg.volume || 0;
+  speedInput.value = cfg.speed || 1;
   document.getElementById('pauseOnFullscreen').checked = cfg.pauseOnFullscreen !== false;
   document.getElementById('pauseOnBattery').checked = cfg.pauseOnBattery !== false;
+  updateIndicators();
   if (cfg.wallpaper) {
     showWallpaper(cfg.wallpaper);
   }
 });
+
+volumeInput.addEventListener('input', updateIndicators);
+speedInput.addEventListener('input', updateIndicators);
 
 const dropZone = document.getElementById('dropZone');
 dropZone.addEventListener('dragover', (e) => {
@@ -67,8 +79,8 @@ function hideError() {
 
 document.getElementById('apply').addEventListener('click', () => {
   const cfg = {
-    volume: Number(document.getElementById('volume').value),
-    speed: Number(document.getElementById('speed').value),
+    volume: Number(volumeInput.value),
+    speed: Number(speedInput.value),
     pauseOnFullscreen: document.getElementById('pauseOnFullscreen').checked,
     pauseOnBattery: document.getElementById('pauseOnBattery').checked,
   };
