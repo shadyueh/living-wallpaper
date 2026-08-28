@@ -144,7 +144,14 @@ app.whenReady().then(async () => {
 
   hotkeys.register();
 
-  tray.create();
+  tray.create({
+    showSettings: () => {
+      if (uiWindow) {
+        uiWindow.show();
+        uiWindow.focus();
+      }
+    },
+  });
   createUIWindow();
 });
 

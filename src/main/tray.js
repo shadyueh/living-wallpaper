@@ -5,8 +5,10 @@ const wallpaperManager = require('./wallpaper-manager');
 const { WALLPAPER_STATUS } = require('../shared/constants');
 
 let tray = null;
+let showSettings = () => {};
 
-function create() {
+function create(options = {}) {
+  showSettings = options.showSettings || (() => {});
   const iconPath = path.join(__dirname, '..', '..', 'assets', 'tray-icon.png');
   let icon;
   try {
@@ -48,23 +50,14 @@ function updateMenu() {
     {
       label: `${isPaused ? '▶ Resume' : '⏸ Pause'}${hotkey ? ` (${hotkey})` : ''}`,
       click: () => {
-        if (isPaused) wallpaperManager.resume();
-        else wallpaperManager.pause();
+        wallpaperManager.toggle();
         updateMenu();
       },
     },
     { type: 'separator' },
     {
       label: 'Settings...',
-      click: () => {
-        const { BrowserWindow } = require('electron');
-        const wins = BrowserWindow.getAllWindows();
-        const uiWin = wins.find((w) => w.getTitle().includes('Living Wallpaper'));
-        if (uiWin) {
-          uiWin.show();
-          uiWin.focus();
-        }
-      },
+      click: () => showSettings(),
     },
     { type: 'separator' },
     {
