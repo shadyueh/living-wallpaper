@@ -12,11 +12,16 @@ const IsWindow = user32.func('bool IsWindow(uint64_t hwnd)');
 const GetWindowLongPtrW = user32.func('intptr_t GetWindowLongPtrW(uint64_t hwnd, int index)');
 const SetWindowLongPtrW = user32.func('intptr_t SetWindowLongPtrW(uint64_t hwnd, int index, intptr_t value)');
 const SetWindowPos = user32.func('void* SetWindowPos(uint64_t hwnd, uint64_t insertAfter, int x, int y, int cx, int cy, uint32_t flags)');
+const SetLayeredWindowAttributes = user32.func('bool SetLayeredWindowAttributes(uint64_t hwnd, int color, int alpha, int flags)');
 const DwmSetWindowAttribute = dwmapi.func('int DwmSetWindowAttribute(uint64_t hwnd, uint32_t attribute, const void* data, uint32_t size)');
 
 const GWL_STYLE = -16;
-const GWLP_HWNDPARENT = -8;
+const GWL_EXSTYLE = -20;
 const WS_CHILD = 0x40000000;
+const WS_POPUP = 0x80000000;
+const WS_EX_LAYERED = 0x00080000;
+const WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
+const LWA_ALPHA = 0x00000002;
 const GA_PARENT = 1;
 const SWP_NOSIZE = 0x0001;
 const SWP_NOMOVE = 0x0002;
@@ -122,16 +127,21 @@ function resetLayerCache() {
   layout = null;
 }
 
-// Finds the "empty" WorkerW that sits on top of the static wallpaper but below
-// the desktop icons. That is the layer an animated wallpaper must render into.
+function isRaisedDesktop(progman) {
+  return (Number(GetWindowLongPtrW(progman, GWL_EXSTYLE)) & WS_EX_NOREDIRECTIONBITMAP) !== 0;
+}
+
+// Returns the window the wallpaper must be parented to in order to render
+// behind the desktop icons.
 //
-// There are two desktop layouts to cover:
-//   - Classic: SHELLDLL_DefView lives inside its own WorkerW. The wallpaper
-//     layer is the following top-level WorkerW (which hosts no DefView).
-//   - Windows 11: SHELLDLL_DefView hangs directly off Progman, so every
-//     top-level WorkerW is empty; the first one is the wallpaper layer.
-// In both cases the wallpaper layer is the first top-level WorkerW that does
-// not host SHELLDLL_DefView.
+// Windows 11 24H2+ ("raised desktop"): SHELLDLL_DefView is a layered child of
+// Progman that draws just the icons, and the wallpaper renders into a child
+// WorkerW of Progman z-ordered below the icons layer. This is the user's build
+// (26200), so the child WorkerW is the primary target.
+//
+// Classic (Windows 10 / older Windows 11): SHELLDLL_DefView lives inside a
+// top-level WorkerW and the wallpaper layer is the empty top-level WorkerW
+// that follows the icons one.
 function findWallpaperWorkerW() {
   const progman = handleValue(FindWindowW(PROGMAN_CLASS, null));
   if (!progman) return 0;
@@ -140,6 +150,10 @@ function findWallpaperWorkerW() {
   // there yet (it is already present on repeated calls).
   SendMessageW(progman, WM_SPAWN_WORKERW, 0, 0);
 
+  if (isRaisedDesktop(progman)) {
+    return handleValue(FindWindowExW(progman, 0, WORKERW_CLASS, null));
+  }
+
   for (const w of workerWindows()) {
     if (!handleValue(FindWindowExW(w, 0, DESKTOP_VIEW_CLASS, null))) return w;
   }
@@ -147,14 +161,29 @@ function findWallpaperWorkerW() {
 }
 
 // Makes the Electron window render as the desktop wallpaper, behind the icons
-// and above the static wallpaper, by owner-parenting it to the wallpaper
-// WorkerW. Owner-parenting via GWLP_HWNDPARENT is the mechanism Electron itself
-// uses for parent windows and keeps the DWM-composited surface visible — unlike
-// SetParent + WS_CHILD, which renders internally but never composites to screen.
-function attachWallpaperWindow(childHandle) {
+// and above the static wallpaper, by re-parenting it into the desktop layer.
+// DWM only composites a surface behind the desktop icons when the window is
+// layered and opaque, so we enable WS_EX_LAYERED and set full opacity before
+// making it a child window and nesting it (SetParent) into the wallpaper layer.
+function attachWallpaperWindow(childHandle, width, height) {
   const parent = findWallpaperWorkerW();
   if (!parent) return false;
-  SetWindowLongPtrW(childHandle, GWLP_HWNDPARENT, parent);
+
+  const exStyle = Number(GetWindowLongPtrW(childHandle, GWL_EXSTYLE));
+  if (!(exStyle & WS_EX_LAYERED)) {
+    SetWindowLongPtrW(childHandle, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+  }
+  SetLayeredWindowAttributes(childHandle, 0, 255, LWA_ALPHA);
+
+  // Turn the top-level window into a child so SetParent nests it into the
+  // desktop layer. Coordinates become relative to the new parent afterwards.
+  const style = Number(GetWindowLongPtrW(childHandle, GWL_STYLE));
+  SetWindowLongPtrW(childHandle, GWL_STYLE, (style & ~WS_POPUP) | WS_CHILD);
+
+  SetParent(childHandle, parent);
+
+  SetWindowPos(childHandle, 0, 0, 0, width, height, SWP_NOACTIVATE);
+
   return true;
 }
 
