@@ -40,11 +40,6 @@ jest.mock('electron', () => {
   };
 });
 
-jest.mock('../../src/main/desktop/windows', () => ({
-  setParentToWorkerW: jest.fn(),
-  ensureParentedToWorkerW: jest.fn(),
-}));
-
 const { IPC, WALLPAPER_STATUS } = require('../../src/shared/constants');
 
 const DISPLAY = { bounds: { x: 0, y: 0, width: 1920, height: 1080 } };
@@ -73,6 +68,12 @@ describe('wallpaper-manager', () => {
     const win = wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
     expect(win).toBeDefined();
     expect(win._opts.width).toBe(1920);
+  });
+
+  test('create uses a desktop-type window (behind the icons)', () => {
+    const win = wm.create(DISPLAY);
+    expect(win._opts.type).toBe('desktop');
+    expect(win._opts.transparent).toBeUndefined();
   });
 
   test('create destroys previous window', () => {
@@ -175,27 +176,5 @@ describe('wallpaper-manager', () => {
     win2.webContents.emit('did-finish-load');
 
     expect(sendSpy).not.toHaveBeenCalled();
-  });
-
-  test('starts parenting watch on win32 and re-asserts parenting', () => {
-    wm.create(DISPLAY);
-    if (process.platform !== 'win32') return;
-    const { ensureParentedToWorkerW } = require('../../src/main/desktop/windows');
-
-    jest.advanceTimersByTime(5000);
-
-    expect(ensureParentedToWorkerW).toHaveBeenCalled();
-  });
-
-  test('parenting watch stops on destroy', () => {
-    wm.create(DISPLAY);
-    if (process.platform !== 'win32') return;
-    const { ensureParentedToWorkerW } = require('../../src/main/desktop/windows');
-    ensureParentedToWorkerW.mockClear();
-
-    wm.destroy();
-    jest.advanceTimersByTime(15000);
-
-    expect(ensureParentedToWorkerW).not.toHaveBeenCalled();
   });
 });
