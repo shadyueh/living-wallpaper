@@ -17,6 +17,31 @@ function notify(title, body) {
   }
 }
 
+function sendWallpaperError(message) {
+  if (uiWindow && !uiWindow.isDestroyed()) {
+    uiWindow.webContents.send(IPC.WALLPAPER_ERROR, message);
+  }
+}
+
+function startWallpaper() {
+  wallpaperManager.create(screen.getPrimaryDisplay());
+
+  const savedWallpaper = config.get('wallpaper');
+  if (!savedWallpaper) return;
+
+  if (!fs.existsSync(savedWallpaper)) {
+    config.set('wallpaper', null);
+    notify('Living Wallpaper', `Saved video not found: ${path.basename(savedWallpaper)}`);
+    return;
+  }
+
+  wallpaperManager.setWallpaper({
+    type: 'video',
+    path: savedWallpaper,
+    volume: config.get('volume'),
+  });
+}
+
 function createUIWindow() {
   uiWindow = new BrowserWindow({
     width: 520,
@@ -55,9 +80,7 @@ ipcMain.on(IPC.SET_CONFIG, (_event, partial) => {
 ipcMain.on(IPC.SET_WALLPAPER, (_event, wallpaper) => {
   if (!wallpaper || !wallpaper.path || typeof wallpaper.path !== 'string') return;
   if (!fs.existsSync(wallpaper.path)) {
-    if (uiWindow && !uiWindow.isDestroyed()) {
-      uiWindow.webContents.send(IPC.WALLPAPER_ERROR, `File not found: ${path.basename(wallpaper.path)}`);
-    }
+    sendWallpaperError(`File not found: ${path.basename(wallpaper.path)}`);
     return;
   }
   config.set('wallpaper', wallpaper.path);
@@ -82,9 +105,7 @@ ipcMain.on(IPC.WALLPAPER_STATUS, (_event, { status, error }) => {
 
   if (status === WALLPAPER_STATUS.ERROR) {
     config.set('wallpaper', null);
-    if (uiWindow && !uiWindow.isDestroyed()) {
-      uiWindow.webContents.send(IPC.WALLPAPER_ERROR, error);
-    }
+    sendWallpaperError(error);
     notify('Living Wallpaper', `Video file not found: ${error}`);
   }
 });
@@ -105,22 +126,7 @@ ipcMain.on(IPC.QUIT_APP, () => {
 app.whenReady().then(async () => {
   await config.init();
 
-  const primaryDisplay = screen.getPrimaryDisplay();
-  wallpaperManager.create(primaryDisplay);
-
-  const savedWallpaper = config.get('wallpaper');
-  if (savedWallpaper) {
-    if (fs.existsSync(savedWallpaper)) {
-      wallpaperManager.setWallpaper({
-        type: 'video',
-        path: savedWallpaper,
-        volume: config.get('volume'),
-      });
-    } else {
-      config.set('wallpaper', null);
-      notify('Living Wallpaper', `Saved video not found: ${path.basename(savedWallpaper)}`);
-    }
-  }
+  startWallpaper();
 
   if (config.get('pauseOnFullscreen')) {
     let lastFullscreenState = false;
