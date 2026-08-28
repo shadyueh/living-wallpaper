@@ -80,4 +80,19 @@ describe('windows desktop integration', () => {
     desktop.ensureAttachedToDesktop(300);
     expect(handlers.SetParent).not.toHaveBeenCalled();
   });
+
+  test('disableRoundedCorners asks DWM not to round the corners', () => {
+    desktop.disableRoundedCorners(300);
+    expect(handlers.DwmSetWindowAttribute).toHaveBeenCalledWith(
+      300,
+      33,
+      expect.any(Int32Array),
+      4
+    );
+  });
+
+  test('disableRoundedCorners is a no-op without a handle', () => {
+    desktop.disableRoundedCorners(0);
+    expect(handlers.DwmSetWindowAttribute).not.toHaveBeenCalled();
+  });
 });

@@ -1,6 +1,7 @@
 const koffi = require('koffi');
 
 const user32 = koffi.load('user32.dll');
+const dwmapi = koffi.load('dwmapi.dll');
 
 const FindWindowW = user32.func('void* FindWindowW(const char16_t* name, const char16_t* title)');
 const SendMessageW = user32.func('void* SendMessageW(uint64_t hwnd, int msg, int wParam, int lParam)');
@@ -11,6 +12,7 @@ const IsWindow = user32.func('bool IsWindow(uint64_t hwnd)');
 const GetWindowLongPtrW = user32.func('intptr_t GetWindowLongPtrW(uint64_t hwnd, int index)');
 const SetWindowLongPtrW = user32.func('intptr_t SetWindowLongPtrW(uint64_t hwnd, int index, intptr_t value)');
 const SetWindowPos = user32.func('void* SetWindowPos(uint64_t hwnd, uint64_t insertAfter, int x, int y, int cx, int cy, uint32_t flags)');
+const DwmSetWindowAttribute = dwmapi.func('int DwmSetWindowAttribute(uint64_t hwnd, uint32_t attribute, const void* data, uint32_t size)');
 
 const GWL_STYLE = -16;
 const WS_CHILD = 0x40000000;
@@ -22,6 +24,8 @@ const WM_SPAWN_WORKERW = 0x052C;
 const PROGMAN_CLASS = 'Progman';
 const DESKTOP_VIEW_CLASS = 'SHELLDLL_DefView';
 const WORKERW_CLASS = 'WorkerW';
+const DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+const DWMWCP_DONOTROUND = 1;
 
 let layout = null;
 
@@ -117,4 +121,17 @@ function resetLayerCache() {
   layout = null;
 }
 
-module.exports = { getLayout, attachToDesktopLayer, isAttachedToDesktop, ensureAttachedToDesktop, resetLayerCache };
+function disableRoundedCorners(childHandle) {
+  if (!childHandle) return;
+  const preference = new Int32Array([DWMWCP_DONOTROUND]);
+  DwmSetWindowAttribute(childHandle, DWMWA_WINDOW_CORNER_PREFERENCE, preference, 4);
+}
+
+module.exports = {
+  getLayout,
+  attachToDesktopLayer,
+  isAttachedToDesktop,
+  ensureAttachedToDesktop,
+  resetLayerCache,
+  disableRoundedCorners,
+};

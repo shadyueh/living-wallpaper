@@ -2,6 +2,7 @@
 const { BrowserWindow } = require('electron');
 const path = require('path');
 const { IPC, WALLPAPER_STATUS } = require('../shared/constants');
+const windows = require('./desktop/windows');
 
 let wallpaperWindow = null;
 let currentStatus = WALLPAPER_STATUS.STOPPED;
@@ -44,6 +45,15 @@ function create(display) {
 
   wallpaperWindow.setVisibleOnAllWorkspaces(true);
   wallpaperWindow.loadFile(path.join(__dirname, '..', 'wallpaper', 'index.html'));
+
+  if (process.platform === 'win32') {
+    try {
+      const hwnd = Number(wallpaperWindow.getNativeWindowHandle().readBigUInt64LE(0));
+      windows.disableRoundedCorners(hwnd);
+    } catch (error) {
+      console.warn('Failed to disable rounded corners:', error.message);
+    }
+  }
 
   wallpaperWindow.webContents.once('did-finish-load', () => {
     isReady = true;
