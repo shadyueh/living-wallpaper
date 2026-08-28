@@ -7,6 +7,7 @@ function createKoffiMock(options = {}) {
     defViewUnderProgman: options.defViewUnderProgman ?? 500,
     defViewInWorkerW: options.defViewInWorkerW ?? 0,
     workers: options.workers ?? [],
+    workersWithDefView: options.workersWithDefView ?? [],
     isWindowValue: options.isWindowValue ?? 1,
     getParentValue: options.getParentValue ?? 100,
     setParentValue: options.setParentValue ?? 150,
@@ -18,7 +19,7 @@ function createKoffiMock(options = {}) {
     FindWindowExW: jest.fn((parent, _childAfter, cls) => {
       if (cls === 'SHELLDLL_DefView') {
         if (parent === state.progman) return state.defViewUnderProgman;
-        return state.defViewInWorkerW;
+        return state.workersWithDefView.includes(parent) ? state.defViewInWorkerW : 0;
       }
       if (cls === 'WorkerW') {
         if (parent !== 0) return 0;

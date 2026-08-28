@@ -31,6 +31,7 @@ describe('windows desktop integration', () => {
     state.defViewUnderProgman = 0;
     state.defViewInWorkerW = 500;
     state.workers = [200];
+    state.workersWithDefView = [200];
     expect(desktop.getLayout()).toEqual({ parent: 100, insertAfter: 200 });
   });
 
@@ -49,6 +50,7 @@ describe('windows desktop integration', () => {
     state.defViewUnderProgman = 0;
     state.defViewInWorkerW = 500;
     state.workers = [200];
+    state.workersWithDefView = [200];
     desktop.getLayout();
     desktop.attachToDesktopLayer(300);
     expect(handlers.SetParent).toHaveBeenCalledWith(300, 100);
@@ -94,5 +96,48 @@ describe('windows desktop integration', () => {
   test('disableRoundedCorners is a no-op without a handle', () => {
     desktop.disableRoundedCorners(0);
     expect(handlers.DwmSetWindowAttribute).not.toHaveBeenCalled();
+  });
+
+  test('findWallpaperWorkerW returns the empty WorkerW after the icons layer', () => {
+    state.defViewUnderProgman = 0;
+    state.defViewInWorkerW = 500;
+    state.workers = [200, 210];
+    state.workersWithDefView = [200];
+    expect(desktop.findWallpaperWorkerW()).toBe(210);
+  });
+
+  test('findWallpaperWorkerW returns the first WorkerW when icons hang off Progman (Win11)', () => {
+    state.defViewUnderProgman = 500;
+    state.defViewInWorkerW = 0;
+    state.workers = [210];
+    state.workersWithDefView = [];
+    expect(desktop.findWallpaperWorkerW()).toBe(210);
+  });
+
+  test('findWallpaperWorkerW returns 0 when no wallpaper layer is found', () => {
+    state.defViewUnderProgman = 0;
+    state.defViewInWorkerW = 0;
+    state.workers = [];
+    state.workersWithDefView = [];
+    expect(desktop.findWallpaperWorkerW()).toBe(0);
+  });
+
+  test('attachWallpaperWindow owner-parents the window to the wallpaper WorkerW', () => {
+    state.defViewUnderProgman = 0;
+    state.defViewInWorkerW = 500;
+    state.workers = [200, 210];
+    state.workersWithDefView = [200];
+    expect(desktop.attachWallpaperWindow(300)).toBe(true);
+    expect(handlers.SetWindowLongPtrW).toHaveBeenCalledWith(300, -8, 210);
+    expect(handlers.SetParent).not.toHaveBeenCalled();
+  });
+
+  test('attachWallpaperWindow returns false and does not parent when no layer found', () => {
+    state.defViewUnderProgman = 0;
+    state.defViewInWorkerW = 0;
+    state.workers = [];
+    state.workersWithDefView = [];
+    expect(desktop.attachWallpaperWindow(300)).toBe(false);
+    expect(handlers.SetWindowLongPtrW).not.toHaveBeenCalled();
   });
 });

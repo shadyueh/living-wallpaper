@@ -15,6 +15,7 @@ const SetWindowPos = user32.func('void* SetWindowPos(uint64_t hwnd, uint64_t ins
 const DwmSetWindowAttribute = dwmapi.func('int DwmSetWindowAttribute(uint64_t hwnd, uint32_t attribute, const void* data, uint32_t size)');
 
 const GWL_STYLE = -16;
+const GWLP_HWNDPARENT = -8;
 const WS_CHILD = 0x40000000;
 const GA_PARENT = 1;
 const SWP_NOSIZE = 0x0001;
@@ -121,6 +122,42 @@ function resetLayerCache() {
   layout = null;
 }
 
+// Finds the "empty" WorkerW that sits on top of the static wallpaper but below
+// the desktop icons. That is the layer an animated wallpaper must render into.
+//
+// There are two desktop layouts to cover:
+//   - Classic: SHELLDLL_DefView lives inside its own WorkerW. The wallpaper
+//     layer is the following top-level WorkerW (which hosts no DefView).
+//   - Windows 11: SHELLDLL_DefView hangs directly off Progman, so every
+//     top-level WorkerW is empty; the first one is the wallpaper layer.
+// In both cases the wallpaper layer is the first top-level WorkerW that does
+// not host SHELLDLL_DefView.
+function findWallpaperWorkerW() {
+  const progman = handleValue(FindWindowW(PROGMAN_CLASS, null));
+  if (!progman) return 0;
+
+  // Ask Progman to spawn the wallpaper WorkerW behind the icons if it is not
+  // there yet (it is already present on repeated calls).
+  SendMessageW(progman, WM_SPAWN_WORKERW, 0, 0);
+
+  for (const w of workerWindows()) {
+    if (!handleValue(FindWindowExW(w, 0, DESKTOP_VIEW_CLASS, null))) return w;
+  }
+  return 0;
+}
+
+// Makes the Electron window render as the desktop wallpaper, behind the icons
+// and above the static wallpaper, by owner-parenting it to the wallpaper
+// WorkerW. Owner-parenting via GWLP_HWNDPARENT is the mechanism Electron itself
+// uses for parent windows and keeps the DWM-composited surface visible — unlike
+// SetParent + WS_CHILD, which renders internally but never composites to screen.
+function attachWallpaperWindow(childHandle) {
+  const parent = findWallpaperWorkerW();
+  if (!parent) return false;
+  SetWindowLongPtrW(childHandle, GWLP_HWNDPARENT, parent);
+  return true;
+}
+
 function disableRoundedCorners(childHandle) {
   if (!childHandle) return;
   const preference = new Int32Array([DWMWCP_DONOTROUND]);
@@ -134,4 +171,6 @@ module.exports = {
   ensureAttachedToDesktop,
   resetLayerCache,
   disableRoundedCorners,
+  findWallpaperWorkerW,
+  attachWallpaperWindow,
 };
