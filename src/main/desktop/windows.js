@@ -18,6 +18,10 @@ const GA_PARENT = 1;
 const SWP_NOSIZE = 0x0001;
 const SWP_NOMOVE = 0x0002;
 const SWP_NOACTIVATE = 0x0010;
+const WM_SPAWN_WORKERW = 0x052C;
+const PROGMAN_CLASS = 'Progman';
+const DESKTOP_VIEW_CLASS = 'SHELLDLL_DefView';
+const WORKERW_CLASS = 'WorkerW';
 
 let layout = null;
 
@@ -27,47 +31,54 @@ function handleValue(value) {
   return koffi.address(value);
 }
 
-function findDesktopWorkerW() {
-  let w = 0;
+function* workerWindows() {
   let prev = 0;
   while (true) {
-    w = handleValue(FindWindowExW(0, prev, 'WorkerW', null));
+    const w = handleValue(FindWindowExW(0, prev, WORKERW_CLASS, null));
     if (!w) break;
+    yield w;
     prev = w;
   }
-  return prev;
+}
+
+function findWorkerWWithDefView() {
+  for (const w of workerWindows()) {
+    if (handleValue(FindWindowExW(w, 0, DESKTOP_VIEW_CLASS, null))) return w;
+  }
+  return 0;
+}
+
+function findLastWorkerW() {
+  let last = 0;
+  for (const w of workerWindows()) last = w;
+  return last;
 }
 
 function getLayout() {
   if (layout) return layout;
 
-  const progman = handleValue(FindWindowW('Progman', null));
+  const progman = handleValue(FindWindowW(PROGMAN_CLASS, null));
   if (!progman) throw new Error('Progman window not found');
 
-  // Send 0x052C to wake up the desktop layer behind the icons
-  SendMessageW(progman, 0x052C, 0, 0);
+  // Send WM_SPAWN_WORKERW to wake up the desktop layer behind the icons
+  SendMessageW(progman, WM_SPAWN_WORKERW, 0, 0);
 
   // Layout 1: icons hosted directly under Progman -> parent to Progman
-  const defView = handleValue(FindWindowExW(progman, 0, 'SHELLDLL_DefView', null));
+  const defView = handleValue(FindWindowExW(progman, 0, DESKTOP_VIEW_CLASS, null));
   if (defView) {
     layout = { parent: progman, insertAfter: defView };
     return layout;
   }
 
   // Layout 2: icons hosted inside a WorkerW that sits under Progman
-  let prev = 0;
-  while (true) {
-    const w = handleValue(FindWindowExW(0, prev, 'WorkerW', null));
-    if (!w) break;
-    if (handleValue(FindWindowExW(w, 0, 'SHELLDLL_DefView', null))) {
-      layout = { parent: progman, insertAfter: w };
-      return layout;
-    }
-    prev = w;
+  const iconsWorkerW = findWorkerWWithDefView();
+  if (iconsWorkerW) {
+    layout = { parent: progman, insertAfter: iconsWorkerW };
+    return layout;
   }
 
   // Fallback: use the last WorkerW in the chain
-  const lastW = findDesktopWorkerW();
+  const lastW = findLastWorkerW();
   if (!lastW) throw new Error('WorkerW window not found');
   layout = { parent: lastW, insertAfter: lastW };
   return layout;
