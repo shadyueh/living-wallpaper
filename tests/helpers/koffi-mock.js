@@ -40,6 +40,8 @@ function createKoffiMock(options = {}) {
     SetWindowLongPtrW: jest.fn(() => 0),
     SetWindowPos: jest.fn(() => 1),
     SetLayeredWindowAttributes: jest.fn(() => 1),
+    GetWindowRect: jest.fn(() => 1),
+    MapWindowPoints: jest.fn(() => 4),
     DwmSetWindowAttribute: jest.fn(() => 0),
   };
 

@@ -60,7 +60,7 @@ function create(display) {
     try {
       const hwnd = Number(wallpaperWindow.getNativeWindowHandle().readBigUInt64LE(0));
       windows.disableRoundedCorners(hwnd);
-      windows.attachWallpaperWindow(hwnd, width, height);
+      windows.attachWallpaperWindow(hwnd, display);
     } catch (error) {
       console.warn('Failed to attach wallpaper to the desktop layer:', error.message);
     }

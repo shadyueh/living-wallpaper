@@ -127,10 +127,20 @@ describe('windows desktop integration', () => {
     state.progmanExStyle = 0x00200000;
     state.progmanWorkerW = 210;
     state.defViewUnderProgman = 500;
-    expect(desktop.attachWallpaperWindow(300, 1920, 1080)).toBe(true);
+    const display = { bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1 };
+    expect(desktop.attachWallpaperWindow(300, display)).toBe(true);
     expect(handlers.SetParent).toHaveBeenCalledWith(300, 210);
     expect(handlers.SetLayeredWindowAttributes).toHaveBeenCalledWith(300, 0, 255, 2);
     expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 0, 0, 0, 1920, 1080, 16);
+  });
+
+  test('attachWallpaperWindow scales the bounds to physical pixels using the display scale factor', () => {
+    state.progmanExStyle = 0x00200000;
+    state.progmanWorkerW = 210;
+    state.defViewUnderProgman = 500;
+    const display = { bounds: { x: 0, y: 0, width: 2048, height: 1152 }, scaleFactor: 1.25 };
+    expect(desktop.attachWallpaperWindow(300, display)).toBe(true);
+    expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 0, 0, 0, 2560, 1440, 16);
   });
 
   test('attachWallpaperWindow returns false and does not parent when no layer found', () => {
@@ -138,7 +148,8 @@ describe('windows desktop integration', () => {
     state.defViewInWorkerW = 0;
     state.workers = [];
     state.workersWithDefView = [];
-    expect(desktop.attachWallpaperWindow(300, 1920, 1080)).toBe(false);
+    const display = { bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1 };
+    expect(desktop.attachWallpaperWindow(300, display)).toBe(false);
     expect(handlers.SetParent).not.toHaveBeenCalled();
   });
 });

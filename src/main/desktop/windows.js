@@ -13,6 +13,8 @@ const GetWindowLongPtrW = user32.func('intptr_t GetWindowLongPtrW(uint64_t hwnd,
 const SetWindowLongPtrW = user32.func('intptr_t SetWindowLongPtrW(uint64_t hwnd, int index, intptr_t value)');
 const SetWindowPos = user32.func('void* SetWindowPos(uint64_t hwnd, uint64_t insertAfter, int x, int y, int cx, int cy, uint32_t flags)');
 const SetLayeredWindowAttributes = user32.func('bool SetLayeredWindowAttributes(uint64_t hwnd, int color, int alpha, int flags)');
+const GetWindowRect = user32.func('bool GetWindowRect(uint64_t hwnd, int* rect)');
+const MapWindowPoints = user32.func('int MapWindowPoints(uint64_t from, uint64_t to, int* points, int count)');
 const DwmSetWindowAttribute = dwmapi.func('int DwmSetWindowAttribute(uint64_t hwnd, uint32_t attribute, const void* data, uint32_t size)');
 
 const GWL_STYLE = -16;
@@ -165,9 +167,26 @@ function findWallpaperWorkerW() {
 // DWM only composites a surface behind the desktop icons when the window is
 // layered and opaque, so we enable WS_EX_LAYERED and set full opacity before
 // making it a child window and nesting it (SetParent) into the wallpaper layer.
-function attachWallpaperWindow(childHandle, width, height) {
+//
+// `display` supplies the target bounds and scale factor. The Electron bounds
+// are in device-independent pixels, but SetWindowPos works in physical pixels,
+// so we scale them (display.scaleFactor) and cover the requested monitor. For
+// the multi-monitor "extend to all displays" mode we later size the window to
+// the full rectangle of the layer (GetWindowRect) instead.
+function attachWallpaperWindow(childHandle, display) {
   const parent = findWallpaperWorkerW();
   if (!parent) return false;
+
+  const scale = (display && display.scaleFactor) || 1;
+  const bounds = (display && display.bounds) || { x: 0, y: 0, width: 0, height: 0 };
+  const width = Math.round((bounds.width || 0) * scale);
+  const height = Math.round((bounds.height || 0) * scale);
+
+  // Read the layer's covering rectangle (physical pixels of the whole virtual
+  // desktop) as the reference geometry — this is what "extend to all displays"
+  // will size the window to in the multi-monitor feature.
+  const layerRect = new Int32Array(4);
+  GetWindowRect(parent, layerRect);
 
   const exStyle = Number(GetWindowLongPtrW(childHandle, GWL_EXSTYLE));
   if (!(exStyle & WS_EX_LAYERED)) {
@@ -182,7 +201,12 @@ function attachWallpaperWindow(childHandle, width, height) {
 
   SetParent(childHandle, parent);
 
-  SetWindowPos(childHandle, 0, 0, 0, width, height, SWP_NOACTIVATE);
+  // Translate the requested screen origin into the layer's coordinate space so
+  // the window lands on the correct monitor (matters once we size per display).
+  const origin = new Int32Array([Math.round(bounds.x || 0), Math.round(bounds.y || 0)]);
+  MapWindowPoints(0, parent, origin, 1);
+
+  SetWindowPos(childHandle, 0, origin[0], origin[1], width, height, SWP_NOACTIVATE);
 
   return true;
 }
