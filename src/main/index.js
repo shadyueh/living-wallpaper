@@ -42,6 +42,13 @@ function startWallpaper() {
   });
 }
 
+function showUIWindow() {
+  if (uiWindow) {
+    uiWindow.show();
+    uiWindow.focus();
+  }
+}
+
 function createUIWindow() {
   uiWindow = new BrowserWindow({
     width: 520,
@@ -111,10 +118,7 @@ ipcMain.on(IPC.WALLPAPER_STATUS, (_event, { status, error }) => {
 });
 
 ipcMain.on(IPC.SHOW_UI, () => {
-  if (uiWindow) {
-    uiWindow.show();
-    uiWindow.focus();
-  }
+  showUIWindow();
 });
 
 ipcMain.on(IPC.QUIT_APP, () => {
@@ -145,12 +149,7 @@ app.whenReady().then(async () => {
   hotkeys.register();
 
   tray.create({
-    showSettings: () => {
-      if (uiWindow) {
-        uiWindow.show();
-        uiWindow.focus();
-      }
-    },
+    showSettings: () => showUIWindow(),
   });
   createUIWindow();
 });
