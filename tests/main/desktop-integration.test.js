@@ -77,10 +77,13 @@ describe('windows desktop integration', () => {
 
   test('attachToDesktopLayer attaches below the icons layer', () => {
     desktop.getLayout();
-    const result = desktop.attachToDesktopLayer(300);
-    expect(result).toBe(150);
+    desktop.attachToDesktopLayer(300);
     expect(handlers.SetWindowLongPtrW).toHaveBeenCalled();
     expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 500, 0, 0, 0, 0, 19);
+  });
+
+  test('isAttachedToDesktop resolves the layout on demand', () => {
+    expect(desktop.isAttachedToDesktop(300)).toBe(true);
   });
 
   test('attachToDesktopLayer uses the icons WorkerW as insertion target in the classic layout', () => {

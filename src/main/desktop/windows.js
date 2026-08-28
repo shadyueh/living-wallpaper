@@ -91,29 +91,26 @@ function attachToDesktopLayer(childHandle) {
   const style = handleValue(GetWindowLongPtrW(childHandle, GWL_STYLE));
   SetWindowLongPtrW(childHandle, GWL_STYLE, style | WS_CHILD);
 
-  const result = handleValue(SetParent(childHandle, parent));
+  SetParent(childHandle, parent);
 
   // Position the wallpaper just below the icons layer (above the static wallpaper surface)
   SetWindowPos(childHandle, insertAfter, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-  return result;
 }
 
 function isAttachedToDesktop(childHandle) {
   try {
-    if (!layout) return false;
-    if (!IsWindow(layout.parent)) return false;
-    const parent = handleValue(GetAncestor(childHandle, GA_PARENT));
-    return parent === layout.parent;
+    const { parent } = getLayout();
+    if (!IsWindow(parent)) return false;
+    return handleValue(GetAncestor(childHandle, GA_PARENT)) === parent;
   } catch {
     return false;
   }
 }
 
 function ensureAttachedToDesktop(childHandle) {
-  if (isAttachedToDesktop(childHandle)) return true;
+  if (isAttachedToDesktop(childHandle)) return;
   resetLayerCache();
   attachToDesktopLayer(childHandle);
-  return true;
 }
 
 function resetLayerCache() {
