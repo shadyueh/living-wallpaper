@@ -1,47 +1,6 @@
 jest.mock('koffi', () => {
-  const state = {
-    progman: 100,
-    defViewUnderProgman: 500,
-    defViewInWorkerW: 0,
-    workers: [],
-    isWindowValue: 1,
-    getParentValue: 100,
-    setParentValue: 150,
-  };
-  const FindWindowExW = jest.fn((parent, childAfter, cls) => {
-    if (cls === 'SHELLDLL_DefView') {
-      if (parent === state.progman) return state.defViewUnderProgman;
-      return state.defViewInWorkerW;
-    }
-    if (cls === 'WorkerW') {
-      if (parent !== 0) return 0;
-      return state.workers.length ? state.workers.shift() : 0;
-    }
-    return 0;
-  });
-  const handlers = {
-    FindWindowW: jest.fn(() => state.progman),
-    SendMessageW: jest.fn(() => 0),
-    FindWindowExW,
-    SetParent: jest.fn(() => state.setParentValue),
-    GetAncestor: jest.fn(() => state.getParentValue),
-    IsWindow: jest.fn(() => state.isWindowValue),
-    GetWindowLongPtrW: jest.fn(() => 0),
-    SetWindowLongPtrW: jest.fn(() => 0),
-    SetWindowPos: jest.fn(() => 1),
-  };
-  const lib = {
-    handlers,
-    state,
-    func: jest.fn((signature) => {
-      const name = signature.match(/[A-Za-z_]\w*(?=\s*\()/)[0];
-      return handlers[name];
-    }),
-  };
-  return {
-    load: jest.fn(() => lib),
-    address: jest.fn((value) => (typeof value === 'number' ? value : Number(value))),
-  };
+  const { createKoffiMock } = require('../helpers/koffi-mock');
+  return createKoffiMock();
 });
 
 const desktop = require('../../src/main/desktop/windows');
