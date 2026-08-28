@@ -54,6 +54,7 @@ function createUIWindow() {
     width: 520,
     height: 480,
     title: 'Living Wallpaper — Settings',
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -62,6 +63,7 @@ function createUIWindow() {
     backgroundColor: '#1a1a2e',
   });
 
+  uiWindow.removeMenu();
   uiWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
   uiWindow.on('close', (e) => {
