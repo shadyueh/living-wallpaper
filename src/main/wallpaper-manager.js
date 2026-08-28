@@ -14,6 +14,9 @@ function resetState() {
 }
 
 function create(display) {
+  if (!display || !display.bounds) {
+    throw new TypeError('A display with bounds is required to create the wallpaper window');
+  }
   if (wallpaperWindow) wallpaperWindow.destroy();
 
   const { x, y, width, height } = display.bounds;
@@ -86,6 +89,15 @@ function getStatus() {
   return currentStatus;
 }
 
+function toggle() {
+  if (!wallpaperWindow) return;
+  if (currentStatus === WALLPAPER_STATUS.PAUSED) {
+    resume();
+  } else if (currentStatus === WALLPAPER_STATUS.PLAYING) {
+    pause();
+  }
+}
+
 function updateStatus(status, error) {
   if (status === WALLPAPER_STATUS.PLAYING || status === WALLPAPER_STATUS.PAUSED) {
     currentStatus = status;
@@ -109,4 +121,4 @@ function destroy() {
   resetState();
 }
 
-module.exports = { create, setWallpaper, pause, resume, getStatus, updateStatus, send, destroy };
+module.exports = { create, setWallpaper, pause, resume, toggle, getStatus, updateStatus, send, destroy };

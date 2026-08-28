@@ -94,6 +94,26 @@ describe('wallpaper-manager', () => {
     expect(wm.getStatus()).toBe(WALLPAPER_STATUS.PAUSED);
   });
 
+  test('toggle pauses when playing', () => {
+    wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
+    wm.resume();
+    wm.toggle();
+    expect(wm.getStatus()).toBe(WALLPAPER_STATUS.PAUSED);
+  });
+
+  test('toggle resumes when paused', () => {
+    wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
+    wm.pause();
+    wm.toggle();
+    expect(wm.getStatus()).toBe(WALLPAPER_STATUS.PLAYING);
+  });
+
+  test('toggle is a no-op while stopped', () => {
+    wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
+    wm.toggle();
+    expect(wm.getStatus()).toBe(WALLPAPER_STATUS.STOPPED);
+  });
+
   test('resume sets status to PLAYING', () => {
     wm.create({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } });
     wm.pause();
@@ -164,6 +184,11 @@ describe('wallpaper-manager', () => {
 
     expect(sendSpy).toHaveBeenCalledWith(IPC.SET_WALLPAPER, wallpaper);
     expect(sendSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('create throws when display has no bounds', () => {
+    expect(() => wm.create(null)).toThrow(TypeError);
+    expect(() => wm.create({})).toThrow(TypeError);
   });
 
   test('destroy clears the pending wallpaper', () => {
