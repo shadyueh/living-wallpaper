@@ -10,6 +10,7 @@ jest.mock('electron', () => {
     on(channel, fn) {
       if (!ipcListeners[channel]) ipcListeners[channel] = [];
       ipcListeners[channel].push(fn);
+      super.on(channel, fn);
     }
   }
 
@@ -41,9 +42,12 @@ jest.mock('electron', () => {
 
 jest.mock('../../src/main/desktop/windows', () => ({
   setParentToWorkerW: jest.fn(),
+  ensureParentedToWorkerW: jest.fn(),
 }));
 
-const { WALLPAPER_STATUS } = require('../../src/shared/constants');
+const { IPC, WALLPAPER_STATUS } = require('../../src/shared/constants');
+
+const DISPLAY = { bounds: { x: 0, y: 0, width: 1920, height: 1080 } };
 
 describe('wallpaper-manager', () => {
   let wm;
@@ -51,6 +55,7 @@ describe('wallpaper-manager', () => {
   let spyError;
 
   beforeEach(() => {
+    jest.useFakeTimers();
     spyLog = jest.spyOn(console, 'log').mockImplementation(() => {});
     spyError = jest.spyOn(console, 'error').mockImplementation(() => {});
     jest.resetModules();
@@ -58,6 +63,8 @@ describe('wallpaper-manager', () => {
   });
 
   afterEach(() => {
+    wm.destroy();
+    jest.useRealTimers();
     spyLog.mockRestore();
     spyError.mockRestore();
   });
@@ -129,5 +136,66 @@ describe('wallpaper-manager', () => {
     wm.pause();
     wm.resume();
     expect(wm.getStatus()).toBe(WALLPAPER_STATUS.STOPPED);
+  });
+
+  test('setWallpaper before load is queued and flushed after did-finish-load', () => {
+    const wallpaper = { type: 'video', path: 'C:/x.mp4' };
+    const win = wm.create(DISPLAY);
+    const sendSpy = jest.spyOn(win.webContents, 'send');
+
+    wm.setWallpaper(wallpaper);
+
+    expect(sendSpy).not.toHaveBeenCalled();
+
+    win.webContents.emit('did-finish-load');
+
+    expect(sendSpy).toHaveBeenCalledWith(IPC.SET_WALLPAPER, wallpaper);
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('setWallpaper after load sends immediately', () => {
+    const wallpaper = { type: 'video', path: 'C:/y.mp4' };
+    const win = wm.create(DISPLAY);
+    win.webContents.emit('did-finish-load');
+    const sendSpy = jest.spyOn(win.webContents, 'send');
+
+    wm.setWallpaper(wallpaper);
+
+    expect(sendSpy).toHaveBeenCalledWith(IPC.SET_WALLPAPER, wallpaper);
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('destroy clears the pending wallpaper', () => {
+    wm.create(DISPLAY);
+    wm.setWallpaper({ type: 'video', path: 'C:/z.mp4' });
+    wm.destroy();
+
+    const win2 = wm.create(DISPLAY);
+    const sendSpy = jest.spyOn(win2.webContents, 'send');
+    win2.webContents.emit('did-finish-load');
+
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  test('starts parenting watch on win32 and re-asserts parenting', () => {
+    wm.create(DISPLAY);
+    if (process.platform !== 'win32') return;
+    const { ensureParentedToWorkerW } = require('../../src/main/desktop/windows');
+
+    jest.advanceTimersByTime(5000);
+
+    expect(ensureParentedToWorkerW).toHaveBeenCalled();
+  });
+
+  test('parenting watch stops on destroy', () => {
+    wm.create(DISPLAY);
+    if (process.platform !== 'win32') return;
+    const { ensureParentedToWorkerW } = require('../../src/main/desktop/windows');
+    ensureParentedToWorkerW.mockClear();
+
+    wm.destroy();
+    jest.advanceTimersByTime(15000);
+
+    expect(ensureParentedToWorkerW).not.toHaveBeenCalled();
   });
 });
