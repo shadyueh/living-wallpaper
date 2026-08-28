@@ -5,9 +5,12 @@ const { DEFAULT_CONFIG } = require('../shared/constants');
 
 function register() {
   const accel = config.get('hotkey') || DEFAULT_CONFIG.hotkey;
-  globalShortcut.register(accel, () => {
+  const registered = globalShortcut.register(accel, () => {
     wallpaperManager.toggle();
   });
+  if (!registered) {
+    console.warn('Failed to register global shortcut:', accel);
+  }
 }
 
 function unregister() {

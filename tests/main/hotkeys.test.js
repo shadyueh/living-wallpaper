@@ -42,6 +42,14 @@ describe('hotkeys', () => {
     expect(wallpaperManager.toggle).toHaveBeenCalled();
   });
 
+  test('warns when the accelerator cannot be registered', () => {
+    const spyWarn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    globalShortcut.register.mockReturnValue(false);
+    hotkeys.register();
+    expect(spyWarn).toHaveBeenCalledWith('Failed to register global shortcut:', 'Ctrl+Shift+W');
+    spyWarn.mockRestore();
+  });
+
   test('unregister clears all global shortcuts', () => {
     hotkeys.unregister();
     expect(globalShortcut.unregisterAll).toHaveBeenCalled();
