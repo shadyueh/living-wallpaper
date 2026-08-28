@@ -1,30 +1,36 @@
-const ffi = require('ffi-napi');
+const koffi = require('koffi');
 
-const user32 = ffi.Library('user32.dll', {
-  'FindWindowW':       ['pointer', ['string', 'string']],
-  'SendMessageW':      ['pointer', ['pointer', 'int', 'int', 'int']],
-  'FindWindowExW':     ['pointer', ['pointer', 'pointer', 'string', 'string']],
-  'SetParent':         ['pointer', ['pointer', 'pointer']],
-  'GetParent':         ['pointer', ['pointer']],
-  'IsWindow':          ['bool', ['pointer']],
-});
+const user32 = koffi.load('user32.dll');
+
+const FindWindowW = user32.func('void* FindWindowW(const char16_t* name, const char16_t* title)');
+const SendMessageW = user32.func('void* SendMessageW(uint64_t hwnd, int msg, int wParam, int lParam)');
+const FindWindowExW = user32.func('void* FindWindowExW(uint64_t parent, uint64_t childAfter, const char16_t* cls, const char16_t* title)');
+const SetParent = user32.func('void* SetParent(uint64_t child, uint64_t parent)');
+const GetParent = user32.func('void* GetParent(uint64_t child)');
+const IsWindow = user32.func('bool IsWindow(uint64_t hwnd)');
 
 let workerW = null;
+
+function handleValue(value) {
+  if (!value) return 0;
+  if (typeof value === 'number' || typeof value === 'bigint') return Number(value);
+  return koffi.address(value);
+}
 
 function getWorkerW() {
   if (workerW) return workerW;
 
-  const progman = user32.FindWindowW('Progman', null);
+  const progman = handleValue(FindWindowW('Progman', null));
   if (!progman) throw new Error('Progman window not found');
 
   // Send 0x052C to create a WorkerW behind the desktop
-  user32.SendMessageW(progman, 0x052C, 0, 0);
+  SendMessageW(progman, 0x052C, 0, 0);
 
   // Find the new WorkerW (third WorkerW in the chain)
-  let w = null;
-  let prev = null;
+  let w = 0;
+  let prev = 0;
   while (true) {
-    w = user32.FindWindowExW(null, prev, 'WorkerW', null);
+    w = handleValue(FindWindowExW(0, prev, 'WorkerW', null));
     if (!w) break;
     prev = w;
   }
@@ -35,28 +41,15 @@ function getWorkerW() {
 
 function setParentToWorkerW(childHandle) {
   const parent = getWorkerW();
-  return user32.SetParent(childHandle, parent);
-}
-
-function toPointerValue(value) {
-  if (!value) return 0;
-  if (typeof value === 'number' || typeof value === 'bigint') return Number(value);
-  if (Buffer.isBuffer(value) && typeof value.readBigUInt64LE === 'function') {
-    try {
-      return Number(value.readBigUInt64LE(0));
-    } catch {
-      return value.readUInt32LE(0);
-    }
-  }
-  return Number(value);
+  return handleValue(SetParent(childHandle, parent));
 }
 
 function isParented(childHandle) {
   try {
     if (!workerW) return false;
-    if (!user32.IsWindow(workerW)) return false;
-    const parent = user32.GetParent(childHandle);
-    return parent && toPointerValue(parent) === toPointerValue(workerW);
+    if (!IsWindow(workerW)) return false;
+    const parent = handleValue(GetParent(childHandle));
+    return parent === workerW;
   } catch {
     return false;
   }

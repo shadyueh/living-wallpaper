@@ -1,4 +1,4 @@
-jest.mock('ffi-napi', () => {
+jest.mock('koffi', () => {
   const handlers = {
     FindWindowW: jest.fn(() => 100),
     SendMessageW: jest.fn(() => 0),
@@ -7,8 +7,16 @@ jest.mock('ffi-napi', () => {
     GetParent: jest.fn(() => 200),
     IsWindow: jest.fn(() => 1),
   };
+  const lib = {
+    handlers,
+    func: jest.fn((signature) => {
+      const name = signature.match(/[A-Za-z_]\w*(?=\s*\()/)[0];
+      return handlers[name];
+    }),
+  };
   return {
-    Library: jest.fn(() => handlers),
+    load: jest.fn(() => lib),
+    address: jest.fn((value) => (typeof value === 'number' ? value : Number(value))),
   };
 });
 
@@ -19,7 +27,7 @@ describe('windows desktop integration', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    handlers = require('ffi-napi').Library();
+    handlers = require('koffi').load().handlers;
     handlers.FindWindowExW.mockReset().mockReturnValueOnce(200).mockReturnValue(0);
     handlers.IsWindow.mockReturnValue(1);
   });
