@@ -21,7 +21,7 @@ A cross-platform (Windows + Linux) animated wallpaper application that serves as
 
 ```
 Main Process (Node.js)
-├── Desktop Integration (Win32 / Linux APIs via ffi-napi)
+├── Desktop Integration (Win32 / Linux APIs via koffi)
 ├── Wallpaper Lifecycle Manager
 ├── File System Operations
 └── System Tray
@@ -90,7 +90,7 @@ SetWindowPos(hwnd, 0, x, y, w, h, SWP_NOACTIVATE);
 
 **Known issues:**
 - DWM (Desktop Window Manager) may interfere on some Windows builds
-- Must re-parent on explorer.exe restart (shell restart detection via `WM_TASKBARCREATED`)
+- Must re-parent on explorer.exe restart — not yet implemented (helpers `resetLayerCache`/`ensureAttachedToDesktop` exist only; shell restart detection via `WM_TASKBARCREATED` is future work)
 - An Electron window re-parented via `SetParent`+`WS_CHILD` composites only when it is **layered and fully opaque** (`WS_EX_LAYERED` + `SetLayeredWindowAttributes(alpha=255)`) — otherwise it renders internally but never appears
 - `desktopCapturer` skips `type: 'desktop'`/parented windows, so a desktop screenshot never shows the wallpaper even when it is visibly composing
 - Multi-monitor (future): one BrowserWindow per display parented to the shared WorkerW, each sized to its own physical bounds and offset via `MapWindowPoints`; or a single window sized to `GetWindowRect(layer)` for "extend to all displays"
@@ -131,13 +131,15 @@ SetWindowPos(hwnd, 0, x, y, w, h, SWP_NOACTIVATE);
     ┌──────▼──────┐      ┌───────▼────────┐
     │ Win32:      │      │ Linux native:  │
     │ WorkerW     │      │ Wayland daemon │
-    │ (ffi-napi)  │      │ (separate bin) │
+    │ (koffi)     │      │ (separate bin) │
     └─────────────┘      └────────────────┘
 ```
 
 ---
 
 ## 4. Wallpaper Format
+
+> **Status:** target format for the Phase 2 editor/library. The MVP persists a raw video path (`config.wallpaper` = string, via drag-and-drop on the settings UI) instead.
 
 A wallpaper is a directory containing:
 
@@ -179,6 +181,8 @@ my-wallpaper/
 }
 ```
 
+Note: the `fps` and `startMinimized` defaults in `DEFAULT_CONFIG` (`src/shared/constants.js`) likewise exist but are not yet wired in the MVP.
+
 ### 4.2 Wallpaper Types
 
 | Type | `type` value | Required files | Rendering |
@@ -195,14 +199,14 @@ my-wallpaper/
 ### 5.1 Player Features
 
 - **Auto-pause**: Detect fullscreen app/game → pause wallpaper → ~0% CPU/GPU
-  - Windows: `EnumWindows` + check `_NET_WM_STATE_FULLSCREEN`
+  - Windows: polls `EnumWindows` every 2s; a "fullscreen" window is one that is visible without `WS_CAPTION` (0x00C00000) and with `WS_MAXIMIZE` (0x01000000) — see `src/main/fullscreen-detector.js:16-26`
   - Linux X11: `_NET_WM_STATE` atom check
 - **Multi-monitor**: user-chosen layout — either **extend one wallpaper across all displays** or **assign an independent wallpaper per monitor**. Backed by per-display config keyed by display id, sized to physical pixels (see §3.1). On Windows the raised-desktop layout shares a single WorkerW across the virtual desktop, so per-monitor consists of one window per display offset via `MapWindowPoints`, and "extend" sizes a single window to `GetWindowRect(layer)`. (Roadmap — Phase 2; see plan `multi-monitor`.)
 - **Loop playback**: Seamless video looping with no gap
 - **Volume control**: Per-wallpaper audio (default: muted)
 - **Hotkey**: Quick toggle pause/play
-- **Schedule**: Time-based wallpaper switching
-- **Performance profiles**: Low/Medium/High (cap FPS, resolution)
+- **Schedule**: Time-based wallpaper switching (not scheduled — Phase 3 candidate)
+- **Performance profiles**: Low/Medium/High (cap FPS, resolution) (not scheduled — Phase 3 candidate)
 
 ### 5.2 Creator Features
 
@@ -218,7 +222,7 @@ my-wallpaper/
 - **System tray**: Quick access, pause/resume, switch wallpaper
 - **Auto-start**: Launch on boot (configurable)
 - **Settings**: Default wallpaper, performance, hotkeys
-- **Library**: Browse and manage installed wallpapers
+- **Library**: Add source folders and pick files from them as wallpapers (Phase 2)
 
 ---
 
@@ -227,16 +231,17 @@ my-wallpaper/
 | Package | Purpose |
 |---|---|
 | `electron` | App shell |
-| `ffi-napi` | Native API calls (Win32, Linux X11) |
-| `ref-napi` | Buffer/ref types for ffi |
+| `koffi` | Native Win32 API calls via prebuilt bindings (no compiler toolchain) |
 | `electron-store` | Persistent config |
-| `uuid` | Wallpaper IDs |
-| `chokidar` | File watching (live reload in editor) |
 
 ### 6.1 Optional (Phase 2)
 
+> `uuid` (wallpaper IDs) and `chokidar` (file watching/live reload) are not used in the MVP; listed here for the Phase 2 editor/library.
+
 | Package | Purpose |
 |---|---|
+| `uuid` | Wallpaper IDs |
+| `chokidar` | File watching (live reload in editor) |
 | `sharp` | Image processing (thumbnails) |
 | `fluent-ffmpeg` | Video transcoding/conversion |
 | `node-webgl` | Server-side WebGL (for shader preview without display) |
@@ -252,7 +257,7 @@ npm install                 # Install dependencies
 npm run dev                 # Start Electron in dev mode (hot reload)
 npm run build               # Build for current platform
 npm run build:win           # Build Windows installer
-npm run build:linux         # Build Linux AppImage/deb
+npm run build:linux         # (Phase 3 — Linux)
 npm run lint                # ESLint
 npm run test                # Jest tests
 ```
@@ -317,7 +322,7 @@ src/
 | WorkerW breaks on Windows updates | High | Monitor Windows Insider builds, fallback to alternative methods |
 | Electron overhead (RAM/CPU) | Medium | Pause on fullscreen, cap FPS, use HW accel |
 | Wayland requires native code | High | Phase 3, start with X11 |
-| `ffi-napi` build issues | Medium | Use `@aspect-build/ffi-napi` or prebuild binaries |
+| Native addons fail to dlopen in Electron | Medium | Use `koffi` (prebuilt bindings — ffi-napi/ref-napi addons fail with `Error in native callback`) |
 | NVIDIA driver quirks | Medium | Test on multiple GPU vendors, `__GL_THREADED_OPTIMIZATIONS=0` fallback |
 
 ---
