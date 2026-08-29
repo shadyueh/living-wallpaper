@@ -167,7 +167,7 @@ my-wallpaper/
     "resolution": { "width": 3840, "height": 2160 },
     "audio": false,
     "pauseOnFullscreen": true,
-    "pauseOnBattery": true  // persisted in config but not yet wired in the MVP
+    "pauseOnBattery": true
   },
   "properties": [
     {

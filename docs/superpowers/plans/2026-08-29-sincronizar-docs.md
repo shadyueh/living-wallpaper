@@ -156,7 +156,7 @@ git commit -m "docs: sincronizar README com a implementação"
 
 - [ ] **Step 1:** `npm run lint && npm test` — green.
 - [ ] **Step 2:** grep global de termos obsoletos (nenhuma ocorrência fora de notas históricas do plano Phase 1): `ffi-napi`, `ref-napi`, `build:linux` no package.json (não existe).
-- [ ] **Step 3:** grep "Linux X11" — presente apenas em spec §3.2/§8 Fase 3, AGENTS.md Phase 3 e README Phase 3.
+- [ ] **Step 3:** grep "Linux X11" — presente na Phase 3 dos três docs, e nas referências legítimas do spec (§5.1 linha do Linux e §10 critérios de aceite).
 - [ ] **Step 4:** Confirmar que `docs/superpowers/plans/2026-08-28-multi-monitor.md` (já aderente) não precisa de mudanças; as referências de linha (`index.js:27`, koffi-mock) permanecem válidas pois o código não mudou.
 - [ ] **Step 5:** commit final somente se houver ajustes: `docs: ajustes finais de consistência`.
 

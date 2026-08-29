@@ -106,6 +106,8 @@ src/
 - Linux Wayland support (separate native daemon via wlr-layer-shell)
 - GLSL shader wallpapers
 - Scene compositor (layers, particles)
+- Marketplace / sharing
+- Auto-start / scheduling
 
 ## Tech Stack
 
