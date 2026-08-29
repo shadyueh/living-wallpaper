@@ -295,13 +295,13 @@ src/
 - [x] Auto-pause on fullscreen
 
 ### Phase 2 — Cross-platform + Editor
-- [ ] Linux X11 support (XRandr)
 - [ ] Wallpaper editor (import, preview, export)
 - [ ] Web wallpaper support (HTML)
 - [ ] Multi-monitor support
 - [ ] Library management
 
 ### Phase 3 — Advanced
+- [ ] Linux X11 support (XRandr)
 - [ ] Linux Wayland support (separate native daemon)
 - [ ] GLSL shader wallpapers
 - [ ] Scene compositor (layers, particles)
