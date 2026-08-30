@@ -18,6 +18,7 @@ const DEFAULT_CONFIG = {
   wallpaper: null,
   fps: 30,
   volume: 0,
+  speed: 1,
   pauseOnFullscreen: true,
   pauseOnBattery: true,
   startMinimized: false,
