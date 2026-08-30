@@ -2,6 +2,7 @@ const koffi = require('koffi');
 
 const user32 = koffi.load('user32.dll');
 const dwmapi = koffi.load('dwmapi.dll');
+const gdi32 = koffi.load('gdi32.dll');
 
 const FindWindowW = user32.func('void* FindWindowW(const char16_t* name, const char16_t* title)');
 const SendMessageW = user32.func('void* SendMessageW(uint64_t hwnd, int msg, int wParam, int lParam)');
@@ -16,6 +17,8 @@ const SetLayeredWindowAttributes = user32.func('bool SetLayeredWindowAttributes(
 const GetWindowRect = user32.func('bool GetWindowRect(uint64_t hwnd, int* rect)');
 const MapWindowPoints = user32.func('int MapWindowPoints(uint64_t from, uint64_t to, int* points, int count)');
 const DwmSetWindowAttribute = dwmapi.func('int DwmSetWindowAttribute(uint64_t hwnd, uint32_t attribute, const void* data, uint32_t size)');
+const CreateRectRgn = gdi32.func('void* CreateRectRgn(int left, int top, int right, int bottom)');
+const SetWindowRgn = user32.func('int SetWindowRgn(uint64_t hwnd, uint64_t region, int redraw)');
 
 const GWL_STYLE = -16;
 const GWL_EXSTYLE = -20;
@@ -208,6 +211,8 @@ function attachWallpaperWindow(childHandle, display) {
 
   SetWindowPos(childHandle, 0, origin[0], origin[1], width, height, SWP_NOACTIVATE);
 
+  clipToRectangle(childHandle, width, height);
+
   return true;
 }
 
@@ -215,6 +220,18 @@ function disableRoundedCorners(childHandle) {
   if (!childHandle) return;
   const preference = new Int32Array([DWMWCP_DONOTROUND]);
   DwmSetWindowAttribute(childHandle, DWMWA_WINDOW_CORNER_PREFERENCE, preference, 4);
+}
+
+function clipToRectangle(childHandle, width, height) {
+  if (!childHandle || width <= 0 || height <= 0) return;
+  const region = handleValue(CreateRectRgn(0, 0, width, height));
+  if (!region) {
+    console.warn('Failed to create a rectangular region for the wallpaper window');
+    return;
+  }
+  if (!SetWindowRgn(childHandle, region, 1)) {
+    console.warn('Failed to clip the wallpaper window to a rectangular region');
+  }
 }
 
 module.exports = {
