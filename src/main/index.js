@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 const wallpaperManager = require('./wallpaper-manager');
+const { buildWallpaperPayload } = require('./wallpaper-payload');
 const fullscreenDetector = require('./fullscreen-detector');
 const hotkeys = require('./hotkeys');
 const tray = require('./tray');
@@ -35,11 +36,7 @@ function startWallpaper() {
     return;
   }
 
-  wallpaperManager.setWallpaper({
-    type: 'video',
-    path: savedWallpaper,
-    volume: config.get('volume'),
-  });
+  wallpaperManager.setWallpaper(buildWallpaperPayload(savedWallpaper, config.getAll()));
 }
 
 function showUIWindow() {
@@ -115,7 +112,7 @@ ipcMain.on(IPC.SET_WALLPAPER, (_event, wallpaper) => {
     return;
   }
   config.set('wallpaper', wallpaper.path);
-  wallpaperManager.setWallpaper(wallpaper);
+  wallpaperManager.setWallpaper(buildWallpaperPayload(wallpaper.path, config.getAll()));
   tray.updateMenu();
 });
 
