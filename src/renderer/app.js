@@ -59,6 +59,7 @@ function showWallpaper(filePath) {
   const name = filePath.split(/[\\/]/).pop();
   document.getElementById('currentWallpaper').style.display = 'block';
   document.getElementById('wallpaperName').textContent = name;
+  ipcRenderer.send(IPC.FIT_WINDOW);
 }
 
 function showError(message) {
@@ -68,6 +69,7 @@ function showError(message) {
     errorEl.style.display = 'block';
   }
   document.getElementById('currentWallpaper').style.display = 'none';
+  ipcRenderer.send(IPC.FIT_WINDOW);
 }
 
 function hideError() {
@@ -75,6 +77,7 @@ function hideError() {
   if (errorEl) {
     errorEl.style.display = 'none';
   }
+  ipcRenderer.send(IPC.FIT_WINDOW);
 }
 
 document.getElementById('apply').addEventListener('click', () => {
