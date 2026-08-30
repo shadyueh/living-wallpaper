@@ -9,6 +9,7 @@ const IPC = {
   CONFIG_RESPONSE: 'lw:config-response',
   SET_VOLUME: 'lw:set-volume',
   SET_SPEED: 'lw:set-speed',
+  FIT_WINDOW: 'lw:fit-window',
   SHOW_UI: 'lw:show-ui',
   QUIT_APP: 'lw:quit-app',
 };

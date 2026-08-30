@@ -49,12 +49,30 @@ function showUIWindow() {
   }
 }
 
+async function fitSettingsWindow() {
+  if (!uiWindow || uiWindow.isDestroyed()) return;
+  try {
+    const { width, height } = await uiWindow.webContents.executeJavaScript(
+      '({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })'
+    );
+    if (width > 0 && height > 0) {
+      uiWindow.setContentSize(Math.ceil(width), Math.ceil(height));
+    }
+  } catch {
+    // window may still be loading or already closed
+  }
+}
+
 function createUIWindow() {
   uiWindow = new BrowserWindow({
-    width: 520,
+    width: 480,
     height: 480,
     title: 'Living Wallpaper — Settings',
     autoHideMenuBar: true,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    useContentSize: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -65,6 +83,10 @@ function createUIWindow() {
 
   uiWindow.removeMenu();
   uiWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+
+  uiWindow.webContents.once('did-finish-load', () => {
+    fitSettingsWindow();
+  });
 
   uiWindow.on('close', (e) => {
     e.preventDefault();
@@ -106,6 +128,10 @@ ipcMain.on(IPC.SET_VOLUME, (_event, volume) => {
 
 ipcMain.on(IPC.SET_SPEED, (_event, speed) => {
   wallpaperManager.send(IPC.SET_SPEED, speed);
+});
+
+ipcMain.on(IPC.FIT_WINDOW, () => {
+  fitSettingsWindow();
 });
 
 ipcMain.on(IPC.WALLPAPER_STATUS, (_event, { status, error }) => {
