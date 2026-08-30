@@ -43,6 +43,8 @@ function createKoffiMock(options = {}) {
     GetWindowRect: jest.fn(() => 1),
     MapWindowPoints: jest.fn(() => 4),
     DwmSetWindowAttribute: jest.fn(() => 0),
+    CreateRectRgn: jest.fn(() => 500),
+    SetWindowRgn: jest.fn(() => 1),
   };
 
   const nameOf = (signature) => Object.keys(handlers).find((name) => signature.includes(`${name}(`));

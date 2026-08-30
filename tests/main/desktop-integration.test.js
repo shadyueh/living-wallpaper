@@ -143,6 +143,16 @@ describe('windows desktop integration', () => {
     expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 0, 0, 0, 2560, 1440, 16);
   });
 
+  test('attachWallpaperWindow clips the wallpaper to a rectangular region covering the whole window', () => {
+    state.progmanExStyle = 0x00200000;
+    state.progmanWorkerW = 210;
+    state.defViewUnderProgman = 500;
+    const display = { bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1 };
+    expect(desktop.attachWallpaperWindow(300, display)).toBe(true);
+    expect(handlers.CreateRectRgn).toHaveBeenCalledWith(0, 0, 1920, 1080);
+    expect(handlers.SetWindowRgn).toHaveBeenCalledWith(300, 500, 1);
+  });
+
   test('attachWallpaperWindow returns false and does not parent when no layer found', () => {
     state.defViewUnderProgman = 0;
     state.defViewInWorkerW = 0;
@@ -151,5 +161,6 @@ describe('windows desktop integration', () => {
     const display = { bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1 };
     expect(desktop.attachWallpaperWindow(300, display)).toBe(false);
     expect(handlers.SetParent).not.toHaveBeenCalled();
+    expect(handlers.CreateRectRgn).not.toHaveBeenCalled();
   });
 });
