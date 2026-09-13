@@ -65,6 +65,7 @@ function createUIWindow() {
     width: 480,
     height: 480,
     title: 'Living Wallpaper — Settings',
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.ico'),
     autoHideMenuBar: true,
     resizable: false,
     maximizable: false,

@@ -8,8 +8,9 @@ Electron app for animated desktop wallpapers on Windows. Phase 1 MVP: video wall
 npm run dev       # Start in dev mode
 npm start         # Start normally
 npm run lint      # ESLint (flat config, ESLint 9+)
-npm test          # Jest — 59 tests across 8 suites
+npm test          # Jest — 66 tests across 9 suites
 npm run build     # electron-builder
+npm run icons     # Regenerate assets/icon*.png/.ico from assets/icon.svg (needs Inkscape)
 ```
 
 Lint must pass before commits: `npm run lint && npm test`

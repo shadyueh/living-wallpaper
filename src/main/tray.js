@@ -6,18 +6,25 @@ const { WALLPAPER_STATUS } = require('../shared/constants');
 
 let tray = null;
 let showSettings = () => {};
+let icons = { normal: null, paused: null };
+
+function loadIcon(fileName) {
+  const iconPath = path.join(__dirname, '..', '..', 'assets', fileName);
+  try {
+    return nativeImage.createFromPath(iconPath);
+  } catch {
+    return nativeImage.createEmpty();
+  }
+}
 
 function create(options = {}) {
   showSettings = options.showSettings || (() => {});
-  const iconPath = path.join(__dirname, '..', '..', 'assets', 'tray-icon.png');
-  let icon;
-  try {
-    icon = nativeImage.createFromPath(iconPath);
-  } catch {
-    icon = nativeImage.createEmpty();
-  }
+  icons = {
+    normal: loadIcon('icon.ico'),
+    paused: loadIcon('icon-pause.ico'),
+  };
 
-  tray = new Tray(icon);
+  tray = new Tray(icons.normal);
   tray.setToolTip('Living Wallpaper');
 
   updateMenu();
@@ -40,6 +47,7 @@ function updateMenu() {
 
   const statusText = isPaused ? 'Paused (fullscreen)' : 'Playing';
   tray.setToolTip(`${name} — ${statusText}`);
+  tray.setImage(isPaused ? (icons.paused || icons.normal) : icons.normal);
 
   const template = [
     {
