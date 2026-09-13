@@ -6,13 +6,18 @@ jest.mock('electron', () => {
       super();
       this._tooltip = '';
       this._menu = null;
+      this._image = null;
       this._destroyed = false;
     }
     setToolTip(t) { this._tooltip = t; }
     setContextMenu(m) { this._menu = m; }
+    setImage(i) { this._image = i; }
     popUpContextMenu() {}
     destroy() { this._destroyed = true; }
   }
+
+  const normalIcon = { _variant: 'normal' };
+  const pauseIcon = { _variant: 'pause' };
 
   class MockMenu {
     static buildFromTemplate(template) { return template; }
@@ -21,7 +26,10 @@ jest.mock('electron', () => {
   return {
     Tray: MockTray,
     Menu: MockMenu,
-    nativeImage: { createFromPath: jest.fn(() => ({})), createEmpty: jest.fn(() => ({})) },
+    nativeImage: {
+      createFromPath: jest.fn((p) => (p.includes('pause') ? pauseIcon : normalIcon)),
+      createEmpty: jest.fn(() => ({})),
+    },
     app: { quit: jest.fn() },
   };
 });
@@ -41,6 +49,7 @@ jest.mock('../../src/main/wallpaper-manager', () => ({
 
 const tray = require('../../src/main/tray');
 const wallpaperManager = require('../../src/main/wallpaper-manager');
+const { nativeImage } = require('electron');
 
 describe('tray', () => {
   afterEach(() => tray.destroy());
@@ -99,6 +108,27 @@ describe('tray', () => {
     const toggle = t._menu.find((item) => item.label && item.label.includes('Pause'));
     toggle.click();
     expect(wallpaperManager.toggle).toHaveBeenCalled();
+  });
+
+  test('create loads the normal and pause icon assets', () => {
+    tray.create();
+    const calls = nativeImage.createFromPath.mock.calls.map(([p]) => p);
+    expect(calls.some((p) => p.endsWith('icon.ico'))).toBe(true);
+    expect(calls.some((p) => p.endsWith('icon-pause.ico'))).toBe(true);
+  });
+
+  test('updateMenu shows the pause icon when wallpaper is paused', () => {
+    wallpaperManager.getStatus.mockReturnValue('paused');
+    const t = tray.create();
+    tray.updateMenu();
+    expect(t._image).toEqual({ _variant: 'pause' });
+  });
+
+  test('updateMenu shows the normal icon when wallpaper is playing', () => {
+    wallpaperManager.getStatus.mockReturnValue('playing');
+    const t = tray.create();
+    tray.updateMenu();
+    expect(t._image).toEqual({ _variant: 'normal' });
   });
 
   test('destroy is idempotent', () => {

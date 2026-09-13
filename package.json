@@ -8,6 +8,7 @@
     "dev": "electron . --dev",
     "lint": "eslint src/ tests/",
     "test": "jest",
+    "icons": "electron scripts/generate-icons.js",
     "build": "electron-builder",
     "build:win": "electron-builder --win"
   },
