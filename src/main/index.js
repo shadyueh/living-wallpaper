@@ -5,12 +5,15 @@ const path = require('path');
 const config = require('./config');
 const wallpaperManager = require('./wallpaper-manager');
 const { buildWallpaperPayload } = require('./wallpaper-payload');
+const { resolveTargetDisplay, serializeDisplays } = require('./display-utils');
 const fullscreenDetector = require('./fullscreen-detector');
 const hotkeys = require('./hotkeys');
 const tray = require('./tray');
 const { IPC, WALLPAPER_STATUS } = require('../shared/constants');
 
 let uiWindow = null;
+let fullscreenPauseState = null;
+let lastWallpaperRecreateAt = 0;
 
 function notify(title, body) {
   if (Notification.isSupported()) {
@@ -24,9 +27,11 @@ function sendWallpaperError(message) {
   }
 }
 
-function startWallpaper() {
-  wallpaperManager.create(screen.getPrimaryDisplay());
+function resolveMonitor() {
+  return resolveTargetDisplay(screen, config.get('targetDisplayId'));
+}
 
+function applySavedWallpaper() {
   const savedWallpaper = config.get('wallpaper');
   if (!savedWallpaper) return;
 
@@ -37,6 +42,98 @@ function startWallpaper() {
   }
 
   wallpaperManager.setWallpaper(buildWallpaperPayload(savedWallpaper, config.getAll()));
+}
+
+function startWallpaper() {
+  wallpaperManager.create(resolveMonitor());
+  applySavedWallpaper();
+}
+
+// Re-serves the monitor list to the settings window so labels (name, resolution)
+// and the selected monitor stay in sync when displays change while the app runs.
+function broadcastMonitors() {
+  if (uiWindow && !uiWindow.isDestroyed()) {
+    uiWindow.webContents.send(
+      IPC.MONITORS_RESPONSE,
+      serializeDisplays(screen, config.get('targetDisplayId'))
+    );
+  }
+}
+
+// Pauses/resumes the wallpaper when a fullscreen window covers its own monitor.
+// The detector reports per-monitor rcRects; a wallpaper only reacts when one of
+// those rects covers the display it is attached to, so a fullscreen app on
+// another monitor leaves it playing (each monitor can later host its own
+// wallpaper). The detector runs only while the setting is enabled.
+function setupFullscreenPause() {
+  if (!config.get('pauseOnFullscreen')) {
+    fullscreenDetector.stop();
+    fullscreenPauseState = null;
+    if (process.env.LW_DEBUG_FULLSCREEN === '1') {
+      console.log('[LW_DEBUG_FULLSCREEN] pause desabilitado');
+    }
+    return;
+  }
+  if (fullscreenPauseState) return;
+  if (process.env.LW_DEBUG_FULLSCREEN === '1') {
+    console.log('[LW_DEBUG_FULLSCREEN] pause habilitado');
+  }
+  fullscreenPauseState = { lastFullscreenState: false };
+  fullscreenDetector.start(({ fullscreen }) => {
+    const state = fullscreenPauseState;
+    if (!state) return;
+    const displayRect = wallpaperManager.getDisplayPhysicalRect();
+    const covered = displayRect
+      ? fullscreen.some((rect) => fullscreenDetector.isRectCoveringDisplay(rect, displayRect))
+      : false;
+    if (process.env.LW_DEBUG_FULLSCREEN === '1') {
+      console.log(
+        `[LW_DEBUG_FULLSCREEN] gate displayRect=${JSON.stringify(displayRect)} covered=${covered}`
+      );
+    }
+    if (covered && !state.lastFullscreenState) {
+      if (process.env.LW_DEBUG_FULLSCREEN === '1') {
+        console.log('[LW_DEBUG_FULLSCREEN] fullscreen=true -> pause');
+      }
+      wallpaperManager.pause();
+      notify('Living Wallpaper', 'Wallpaper paused — fullscreen app detected');
+    } else if (!covered && state.lastFullscreenState) {
+      if (process.env.LW_DEBUG_FULLSCREEN === '1') {
+        console.log('[LW_DEBUG_FULLSCREEN] fullscreen=false -> resume');
+      }
+      wallpaperManager.resume();
+      notify('Living Wallpaper', 'Wallpaper resumed');
+    }
+    state.lastFullscreenState = covered;
+  });
+}
+
+// Rebuilds the wallpaper window on a display whose resolution/scale changed, so
+// it keeps covering the whole screen. The guard collapses the burst of metric
+// events a single change produces into one rebuild.
+function handleDisplayMetricsChanged(_event, display, changedMetrics) {
+  const geometryChanged = Array.isArray(changedMetrics)
+    && changedMetrics.some((metric) => metric === 'bounds' || metric === 'scaleFactor');
+  if (geometryChanged && display.id === wallpaperManager.getDisplayId()) {
+    const now = Date.now();
+    if (now - lastWallpaperRecreateAt >= 700) {
+      lastWallpaperRecreateAt = now;
+      wallpaperManager.create(display);
+      applySavedWallpaper();
+    }
+  }
+  broadcastMonitors();
+}
+
+function handleDisplayRemoved(_event, display) {
+  if (config.get('targetDisplayId') === display.id) {
+    config.set('targetDisplayId', null);
+  }
+  if (wallpaperManager.getDisplayId() === display.id) {
+    wallpaperManager.create(resolveMonitor());
+    applySavedWallpaper();
+  }
+  broadcastMonitors();
 }
 
 function showUIWindow() {
@@ -104,6 +201,9 @@ ipcMain.on(IPC.SET_CONFIG, (_event, partial) => {
   for (const [key, value] of Object.entries(partial)) {
     config.set(key, value);
   }
+  if ('pauseOnFullscreen' in partial) {
+    setupFullscreenPause();
+  }
 });
 
 ipcMain.on(IPC.SET_WALLPAPER, (_event, wallpaper) => {
@@ -115,6 +215,20 @@ ipcMain.on(IPC.SET_WALLPAPER, (_event, wallpaper) => {
   config.set('wallpaper', wallpaper.path);
   wallpaperManager.setWallpaper(buildWallpaperPayload(wallpaper.path, config.getAll()));
   tray.updateMenu();
+});
+
+ipcMain.on(IPC.GET_MONITORS, (event) => {
+  event.reply(IPC.MONITORS_RESPONSE, serializeDisplays(screen, config.get('targetDisplayId')));
+});
+
+ipcMain.on(IPC.SET_MONITOR_TARGET, (_event, displayId) => {
+  if (typeof displayId !== 'number') return;
+  const display = screen.getAllDisplays().find((d) => d.id === displayId);
+  if (!display) return;
+  if (wallpaperManager.getDisplayId() === displayId) return;
+  config.set('targetDisplayId', displayId);
+  wallpaperManager.create(display);
+  applySavedWallpaper();
 });
 
 ipcMain.on(IPC.PAUSE_WALLPAPER, () => wallpaperManager.pause());
@@ -158,19 +272,11 @@ app.whenReady().then(async () => {
 
   startWallpaper();
 
-  if (config.get('pauseOnFullscreen')) {
-    let lastFullscreenState = false;
-    fullscreenDetector.start((isFullscreen) => {
-      if (isFullscreen && !lastFullscreenState) {
-        wallpaperManager.pause();
-        notify('Living Wallpaper', 'Wallpaper paused — fullscreen app detected');
-      } else if (!isFullscreen && lastFullscreenState) {
-        wallpaperManager.resume();
-        notify('Living Wallpaper', 'Wallpaper resumed');
-      }
-      lastFullscreenState = isFullscreen;
-    });
-  }
+  setupFullscreenPause();
+
+  screen.on('display-metrics-changed', handleDisplayMetricsChanged);
+  screen.on('display-added', broadcastMonitors);
+  screen.on('display-removed', handleDisplayRemoved);
 
   hotkeys.register();
 

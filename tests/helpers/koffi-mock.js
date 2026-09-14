@@ -13,6 +13,11 @@ function createKoffiMock(options = {}) {
     isWindowValue: options.isWindowValue ?? 1,
     getParentValue: options.getParentValue ?? 100,
     setParentValue: options.setParentValue ?? 150,
+    childRect: options.childRect ?? null,
+    layerRect: options.layerRect ?? [0, 0, 3840, 2160],
+    monitorHandle: options.monitorHandle ?? 0,
+    monitorInfo: options.monitorInfo ?? null,
+    getMonitorInfoValue: options.getMonitorInfoValue ?? 0,
   };
 
   const handlers = {
@@ -40,8 +45,27 @@ function createKoffiMock(options = {}) {
     SetWindowLongPtrW: jest.fn(() => 0),
     SetWindowPos: jest.fn(() => 1),
     SetLayeredWindowAttributes: jest.fn(() => 1),
-    GetWindowRect: jest.fn(() => 1),
+    GetWindowRect: jest.fn((hwnd, rect) => {
+      const src = hwnd === state.progmanWorkerW ? state.layerRect : state.childRect;
+      if (rect && src && src.length >= 4) {
+        rect[0] = src[0];
+        rect[1] = src[1];
+        rect[2] = src[2];
+        rect[3] = src[3];
+      }
+      return 1;
+    }),
     MapWindowPoints: jest.fn(() => 4),
+    MonitorFromPoint: jest.fn(() => state.monitorHandle),
+    GetMonitorInfoW: jest.fn((_hMonitor, info) => {
+      const src = state.monitorInfo;
+      if (info && src && src.length >= 4) {
+        for (let i = 0; i < Math.min(info.length, src.length); i += 1) {
+          info[i] = src[i];
+        }
+      }
+      return state.getMonitorInfoValue;
+    }),
     DwmSetWindowAttribute: jest.fn(() => 0),
     CreateRectRgn: jest.fn(() => 500),
     SetWindowRgn: jest.fn(() => 1),
@@ -57,6 +81,7 @@ function createKoffiMock(options = {}) {
 
   return {
     load: jest.fn(() => lib),
+    struct: jest.fn((_name, _fields) => ({})),
     address: jest.fn((value) => (typeof value === 'number' ? value : Number(value))),
   };
 }

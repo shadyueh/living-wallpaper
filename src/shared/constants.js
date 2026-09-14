@@ -12,10 +12,14 @@ const IPC = {
   FIT_WINDOW: 'lw:fit-window',
   SHOW_UI: 'lw:show-ui',
   QUIT_APP: 'lw:quit-app',
+  GET_MONITORS: 'lw:get-monitors',
+  MONITORS_RESPONSE: 'lw:monitors-response',
+  SET_MONITOR_TARGET: 'lw:set-monitor-target',
 };
 
 const DEFAULT_CONFIG = {
   wallpaper: null,
+  targetDisplayId: null,
   fps: 30,
   volume: 0,
   speed: 1,
