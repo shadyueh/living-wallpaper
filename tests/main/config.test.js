@@ -24,6 +24,7 @@ describe('config', () => {
   test('returns default values', () => {
     expect(config.get('fps')).toBe(30);
     expect(config.get('volume')).toBe(0);
+    expect(config.get('targetDisplayId')).toBeNull();
   });
 
   test('sets and gets a value', () => {

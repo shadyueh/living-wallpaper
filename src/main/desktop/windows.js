@@ -16,6 +16,9 @@ const SetWindowPos = user32.func('void* SetWindowPos(uint64_t hwnd, uint64_t ins
 const SetLayeredWindowAttributes = user32.func('bool SetLayeredWindowAttributes(uint64_t hwnd, int color, int alpha, int flags)');
 const GetWindowRect = user32.func('bool GetWindowRect(uint64_t hwnd, int* rect)');
 const MapWindowPoints = user32.func('int MapWindowPoints(uint64_t from, uint64_t to, int* points, int count)');
+koffi.struct('POINT', { x: 'int32_t', y: 'int32_t' });
+const MonitorFromPoint = user32.func('void* MonitorFromPoint(POINT point, uint32_t flags)');
+const GetMonitorInfoW = user32.func('bool GetMonitorInfoW(uint64_t monitor, void* info)');
 const DwmSetWindowAttribute = dwmapi.func('int DwmSetWindowAttribute(uint64_t hwnd, uint32_t attribute, const void* data, uint32_t size)');
 const CreateRectRgn = gdi32.func('void* CreateRectRgn(int left, int top, int right, int bottom)');
 const SetWindowRgn = user32.func('int SetWindowRgn(uint64_t hwnd, uint64_t region, int redraw)');
@@ -31,6 +34,7 @@ const GA_PARENT = 1;
 const SWP_NOSIZE = 0x0001;
 const SWP_NOMOVE = 0x0002;
 const SWP_NOACTIVATE = 0x0010;
+const MONITOR_DEFAULTTONEAREST = 0x00000002;
 const WM_SPAWN_WORKERW = 0x052C;
 const PROGMAN_CLASS = 'Progman';
 const DESKTOP_VIEW_CLASS = 'SHELLDLL_DefView';
@@ -165,25 +169,80 @@ function findWallpaperWorkerW() {
   return 0;
 }
 
+// The wallpaper BrowserWindow is created on the target display in DIP coords;
+// Electron already translated those to physical pixels per-monitor when it
+// positioned the window. Reading its real OS rect gives the exact physical
+// geometry of that display, so attaching to a layer is correct for any DPI
+// scale and any per-monitor resolution (including mixed-DPI setups, where the
+// DIP virtual grid does not map linearly to physical pixels).
+function windowPhysicalRect(childHandle) {
+  const rect = new Int32Array(4);
+  GetWindowRect(childHandle, rect);
+  if (rect[2] > rect[0] && rect[3] > rect[1]) {
+    return { left: rect[0], top: rect[1], width: rect[2] - rect[0], height: rect[3] - rect[1] };
+  }
+  return null;
+}
+
+// Fallback physical geometry: ask Win32 for the monitor covering the display's
+// estimated center and read its rcMonitor rect (physical pixels). Only used
+// when the freshly created window does not report a rect yet.
+function monitorPhysicalRect(display) {
+  const scale = (display && display.scaleFactor) || 1;
+  const bounds = (display && display.bounds) || { x: 0, y: 0, width: 0, height: 0 };
+  const center = new Int32Array([
+    Math.round((bounds.x || 0) * scale + ((bounds.width || 0) * scale) / 2),
+    Math.round((bounds.y || 0) * scale + ((bounds.height || 0) * scale) / 2),
+  ]);
+  const hMonitor = handleValue(MonitorFromPoint({ x: center[0], y: center[1] }, MONITOR_DEFAULTTONEAREST));
+  const info = new Int32Array(10);
+  info[0] = 40; // sizeof(MONITORINFO): DWORD + 2*RECT + DWORD
+  if (hMonitor && GetMonitorInfoW(hMonitor, info)) {
+    const left = info[1];
+    const top = info[2];
+    const right = info[3];
+    const bottom = info[4];
+    if (right > left && bottom > top) {
+      return { left, top, width: right - left, height: bottom - top };
+    }
+  }
+  return {
+    left: Math.round((bounds.x || 0) * scale),
+    top: Math.round((bounds.y || 0) * scale),
+    width: Math.round((bounds.width || 0) * scale),
+    height: Math.round((bounds.height || 0) * scale),
+  };
+}
+
 // Makes the Electron window render as the desktop wallpaper, behind the icons
 // and above the static wallpaper, by re-parenting it into the desktop layer.
 // DWM only composites a surface behind the desktop icons when the window is
 // layered and opaque, so we enable WS_EX_LAYERED and set full opacity before
 // making it a child window and nesting it (SetParent) into the wallpaper layer.
 //
-// `display` supplies the target bounds and scale factor. The Electron bounds
-// are in device-independent pixels, but SetWindowPos works in physical pixels,
-// so we scale them (display.scaleFactor) and cover the requested monitor. For
-// the multi-monitor "extend to all displays" mode we later size the window to
-// the full rectangle of the layer (GetWindowRect) instead.
+// `display` supplies the target bounds and scale factor. The native coordinates
+// involved (SetWindowPos, MapWindowPoints) are in physical pixels.
+//
+// The caller must invoke this only once the window has settled on its target
+// display (see wallpaper-manager: it attaches on did-finish-load). At that point
+// the window's OS rect is the final physical geometry of the display it was
+// created on (Electron already translated the DIP bounds per-monitor), so the
+// window is sized and positioned from that settled rect, covering the full
+// screen regardless of the monitor's aspect. The fallback probes the monitor
+// covering the DIP-bounds center only when the window reports no rect yet
+// (see windowPhysicalRect / monitorPhysicalRect).
 function attachWallpaperWindow(childHandle, display) {
   const parent = findWallpaperWorkerW();
   if (!parent) return false;
 
-  const scale = (display && display.scaleFactor) || 1;
-  const bounds = (display && display.bounds) || { x: 0, y: 0, width: 0, height: 0 };
-  const width = Math.round((bounds.width || 0) * scale);
-  const height = Math.round((bounds.height || 0) * scale);
+  const phys = windowPhysicalRect(childHandle) || monitorPhysicalRect(display);
+  if (process.env.LW_DEBUG_GEOMETRY === '1') {
+    console.log('[LW_DEBUG] attach physical rect', phys);
+  }
+  const left = phys.left;
+  const top = phys.top;
+  const width = phys.width;
+  const height = phys.height;
 
   // Read the layer's covering rectangle (physical pixels of the whole virtual
   // desktop) as the reference geometry — this is what "extend to all displays"
@@ -206,7 +265,7 @@ function attachWallpaperWindow(childHandle, display) {
 
   // Translate the requested screen origin into the layer's coordinate space so
   // the window lands on the correct monitor (matters once we size per display).
-  const origin = new Int32Array([Math.round(bounds.x || 0), Math.round(bounds.y || 0)]);
+  const origin = new Int32Array([left, top]);
   MapWindowPoints(0, parent, origin, 1);
 
   SetWindowPos(childHandle, 0, origin[0], origin[1], width, height, SWP_NOACTIVATE);
@@ -243,4 +302,5 @@ module.exports = {
   disableRoundedCorners,
   findWallpaperWorkerW,
   attachWallpaperWindow,
+  monitorPhysicalRect,
 };

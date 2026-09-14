@@ -22,6 +22,11 @@ describe('windows desktop integration', () => {
     state.isWindowValue = 1;
     state.getParentValue = 100;
     state.setParentValue = 150;
+    state.childRect = null;
+    state.layerRect = [0, 0, 3840, 2160];
+    state.monitorHandle = 0;
+    state.monitorInfo = null;
+    state.getMonitorInfoValue = 0;
     desktop.resetLayerCache();
   });
 
@@ -162,5 +167,40 @@ describe('windows desktop integration', () => {
     expect(desktop.attachWallpaperWindow(300, display)).toBe(false);
     expect(handlers.SetParent).not.toHaveBeenCalled();
     expect(handlers.CreateRectRgn).not.toHaveBeenCalled();
+  });
+
+  test('attachWallpaperWindow positions a non-primary display at its physical origin, not the DIP offset', () => {
+    state.progmanExStyle = 0x00200000;
+    state.progmanWorkerW = 210;
+    state.defViewUnderProgman = 500;
+    state.childRect = [1920, 0, 4480, 1440];
+    const display = { bounds: { x: 1536, y: 0, width: 2048, height: 1152 }, scaleFactor: 1.25 };
+    expect(desktop.attachWallpaperWindow(300, display)).toBe(true);
+    expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 0, 1920, 0, 2560, 1440, 16);
+    expect(handlers.CreateRectRgn).toHaveBeenCalledWith(0, 0, 2560, 1440);
+  });
+
+  test('attachWallpaperWindow uses the physical rect where Electron placed the window', () => {
+    state.progmanExStyle = 0x00200000;
+    state.progmanWorkerW = 210;
+    state.defViewUnderProgman = 500;
+    state.childRect = [0, 0, 1920, 1080];
+    const display = { bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1 };
+    expect(desktop.attachWallpaperWindow(300, display)).toBe(true);
+    expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 0, 0, 0, 1920, 1080, 16);
+  });
+
+  test('attachWallpaperWindow falls back to the physical monitor rect when the window has no rect yet', () => {
+    state.progmanExStyle = 0x00200000;
+    state.progmanWorkerW = 210;
+    state.defViewUnderProgman = 500;
+    state.childRect = null;
+    state.monitorHandle = 600;
+    state.monitorInfo = [40, 1920, 0, 4480, 1440, 1920, 0, 4480, 1440, 1];
+    state.getMonitorInfoValue = 1;
+    const display = { bounds: { x: 1536, y: 0, width: 2048, height: 1152 }, scaleFactor: 1.25 };
+    expect(desktop.attachWallpaperWindow(300, display)).toBe(true);
+    expect(handlers.MonitorFromPoint).toHaveBeenCalled();
+    expect(handlers.SetWindowPos).toHaveBeenCalledWith(300, 0, 1920, 0, 2560, 1440, 16);
   });
 });

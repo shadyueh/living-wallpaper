@@ -18,6 +18,7 @@
     .field-header label { margin-bottom: 0; }
     .field-value { font-size: 13px; color: #4ecca3; font-weight: 600; }
     input[type="range"] { width: 100%; display: block; }
+    #monitorLabel { display: block; margin-bottom: 4px; }
     select, input[type="text"] {
       width: 100%; padding: 8px 12px; background: #16213e;
       border: 1px solid #333; border-radius: 4px; color: #e0e0e0;
@@ -55,6 +56,11 @@
   <div id="wallpaperError" class="wallpaper-error"></div>
 
   <div class="field">
+    <label id="monitorLabel">Monitor</label>
+    <select id="monitorSelect"></select>
+  </div>
+
+  <div class="field">
     <div class="field-header">
       <label>Volume</label>
       <span class="field-value" id="volumeValue">0%</span>
@@ -83,8 +89,6 @@
       Pause on battery power
     </label>
   </div>
-
-  <button id="apply">Apply</button>
 
   <script src="app.js"></script>
 </body>

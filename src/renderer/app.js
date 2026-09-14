@@ -3,6 +3,9 @@ const { IPC } = require('../shared/constants');
 
 const volumeInput = document.getElementById('volume');
 const speedInput = document.getElementById('speed');
+const monitorSelect = document.getElementById('monitorSelect');
+const pauseOnFullscreenInput = document.getElementById('pauseOnFullscreen');
+const pauseOnBatteryInput = document.getElementById('pauseOnBattery');
 
 function updateIndicators() {
   document.getElementById('volumeValue').textContent = `${volumeInput.value}%`;
@@ -13,16 +16,55 @@ ipcRenderer.send(IPC.GET_CONFIG);
 ipcRenderer.once(IPC.CONFIG_RESPONSE, (_e, cfg) => {
   volumeInput.value = cfg.volume || 0;
   speedInput.value = cfg.speed || 1;
-  document.getElementById('pauseOnFullscreen').checked = cfg.pauseOnFullscreen !== false;
-  document.getElementById('pauseOnBattery').checked = cfg.pauseOnBattery !== false;
+  pauseOnFullscreenInput.checked = cfg.pauseOnFullscreen !== false;
+  pauseOnBatteryInput.checked = cfg.pauseOnBattery !== false;
   updateIndicators();
   if (cfg.wallpaper) {
     showWallpaper(cfg.wallpaper);
   }
+  ipcRenderer.send(IPC.GET_MONITORS);
 });
 
-volumeInput.addEventListener('input', updateIndicators);
-speedInput.addEventListener('input', updateIndicators);
+ipcRenderer.on(IPC.MONITORS_RESPONSE, (_e, { monitors, selectedId }) => {
+  monitorSelect.innerHTML = '';
+  monitors.forEach((monitor, index) => {
+    const option = document.createElement('option');
+    option.value = String(monitor.id);
+    const monitorLabel = `${monitor.bounds.width}\u00d7${monitor.bounds.height}`;
+    option.textContent = `Monitor ${index + 1} \u2014 ${monitorLabel}${monitor.primary ? ' (Prim\u00e1ria)' : ''}`;
+    monitorSelect.appendChild(option);
+  });
+  monitorSelect.value = String(selectedId);
+  ipcRenderer.send(IPC.FIT_WINDOW);
+});
+
+monitorSelect.addEventListener('change', () => {
+  ipcRenderer.send(IPC.SET_MONITOR_TARGET, Number(monitorSelect.value));
+});
+
+volumeInput.addEventListener('input', () => {
+  updateIndicators();
+  ipcRenderer.send(IPC.SET_VOLUME, Number(volumeInput.value) / 100);
+});
+volumeInput.addEventListener('change', () => {
+  ipcRenderer.send(IPC.SET_CONFIG, { volume: Number(volumeInput.value) });
+});
+
+speedInput.addEventListener('input', () => {
+  updateIndicators();
+  ipcRenderer.send(IPC.SET_SPEED, Number(speedInput.value));
+});
+speedInput.addEventListener('change', () => {
+  ipcRenderer.send(IPC.SET_CONFIG, { speed: Number(speedInput.value) });
+});
+
+pauseOnFullscreenInput.addEventListener('change', () => {
+  ipcRenderer.send(IPC.SET_CONFIG, { pauseOnFullscreen: pauseOnFullscreenInput.checked });
+});
+
+pauseOnBatteryInput.addEventListener('change', () => {
+  ipcRenderer.send(IPC.SET_CONFIG, { pauseOnBattery: pauseOnBatteryInput.checked });
+});
 
 const dropZone = document.getElementById('dropZone');
 dropZone.addEventListener('dragover', (e) => {
@@ -79,15 +121,3 @@ function hideError() {
   }
   ipcRenderer.send(IPC.FIT_WINDOW);
 }
-
-document.getElementById('apply').addEventListener('click', () => {
-  const cfg = {
-    volume: Number(volumeInput.value),
-    speed: Number(speedInput.value),
-    pauseOnFullscreen: document.getElementById('pauseOnFullscreen').checked,
-    pauseOnBattery: document.getElementById('pauseOnBattery').checked,
-  };
-  ipcRenderer.send(IPC.SET_CONFIG, cfg);
-  ipcRenderer.send(IPC.SET_VOLUME, cfg.volume / 100);
-  ipcRenderer.send(IPC.SET_SPEED, cfg.speed);
-});

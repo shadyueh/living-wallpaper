@@ -11,7 +11,7 @@
 
 ## Baseline (already implemented in Phase 1 / fix branch)
 
-- `src/main/wallpaper-manager.js` `create(display)` runs on the **primary display** only (`index.js:27` calls `getPrimaryDisplay()`). Single `wallpaperWindow`.
+- `src/main/wallpaper-manager.js` holds a single `wallpaperWindow`, created for one display. Since the **monitor-target feature**, the display is chosen by the user (`config.targetDisplayId`) or falls back to primary via `resolveTargetDisplay(screen, id)` in `src/main/display-utils.js` (which also provides `serializeDisplays` for the settings UI). Single wallpaper window.
 - `src/main/desktop/windows.js` `attachWallpaperWindow(childHandle, display)` already:
   - detects the **raised desktop** (Win11 24H2+, `WS_EX_NOREDIRECTIONBITMAP` on Progman) and targets the **child WorkerW of Progman** (classic layout fallback included);
   - converts DIP bounds to **physical pixels** via `display.scaleFactor`;
