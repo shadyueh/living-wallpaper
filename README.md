@@ -13,8 +13,10 @@ Animated desktop wallpaper player for Windows. Renders video wallpapers behind y
 ## Requirements
 
 - Windows 10 build 1903+ or Windows 11
-- Node.js >= 20
+- Node.js >= 22.12.0
 - npm >= 10
+
+Electron 44 includes its own Node.js runtime.
 
 Native Win32 calls run through `koffi`, which ships prebuilt bindings — no compiler toolchain or Python build tools required.
 
@@ -52,7 +54,7 @@ npm run dev        # Start in dev mode
 | `npm start` | Start the app normally |
 | `npm run dev` | Start in dev mode |
 | `npm run lint` | Run ESLint |
-| `npm test` | Run Jest tests (59 tests, 8 suites) |
+| `npm test` | Run Jest tests (97 tests, 10 suites) |
 | `npm run build` | Build for current platform |
 | `npm run build:win` | Build Windows installer |
 

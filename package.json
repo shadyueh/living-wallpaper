@@ -18,10 +18,19 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
-    "electron": "^33.4.11",
-    "electron-builder": "^25.1.8",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.16.1",
     "eslint": "^9.39.5",
     "globals": "^15.15.0",
     "jest": "^29.7.0"
+  },
+  "build": {
+    "asarUnpack": [
+      "**/*.node"
+    ]
+  },
+  "allowScripts": {
+    "electron-winstaller@5.4.0": true,
+    "koffi@3.1.6": true
   }
 }
