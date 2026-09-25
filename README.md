@@ -22,11 +22,36 @@ Native Win32 calls run through `koffi`, which ships prebuilt bindings — no com
 
 ## Installation
 
+These commands install the source code and its dependencies for development. They do not create a Windows executable.
+
 ```bash
 git clone <repo-url>
 cd living-wallpaper
 npm install
 ```
+
+## Build and install on Windows
+
+To generate an installable Windows application, open PowerShell in the project root and run:
+
+1. Install the exact dependency versions from `package-lock.json`:
+
+   ```powershell
+   npm ci
+   ```
+
+2. Build the Windows installer:
+
+   ```powershell
+   npm run build:win
+   ```
+
+When the build finishes, the generated files are:
+
+- `dist\living-wallpaper Setup 0.1.0.exe` — double-click this file to install the application.
+- `dist\win-unpacked\living-wallpaper.exe` — run the unpacked build without installing; keep the entire `win-unpacked` directory alongside it.
+
+The installer is currently unsigned and uses the default Electron icon, so Windows SmartScreen may show a warning. The build is intended for Windows x64.
 
 ## Usage
 
