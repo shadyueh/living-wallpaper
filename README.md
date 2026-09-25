@@ -28,6 +28,22 @@ cd living-wallpaper
 npm install
 ```
 
+## Build for Windows
+
+The Windows build produces an NSIS installer and an unpacked x64 build. From the project root, run:
+
+```powershell
+npm ci
+npm run build:win
+```
+
+The generated files are:
+
+- `dist\living-wallpaper Setup 0.1.0.exe` — double-click to install the application.
+- `dist\win-unpacked\living-wallpaper.exe` — run the unpacked build without installing; keep the entire `win-unpacked` directory alongside it.
+
+The installer is currently unsigned and uses the default Electron icon, so Windows SmartScreen may show a warning. The build is intended for Windows x64.
+
 ## Usage
 
 ```bash
